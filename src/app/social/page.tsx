@@ -165,9 +165,8 @@ export default function SocialPage() {
           <button
             key={tab}
             onClick={() => { setActiveTab(tab); setSelectedSquad(null); setSelectedChallenge(null); }}
-            className={`whitespace-nowrap px-5 py-2.5 rounded-full font-medium text-sm transition-all border ${
-              activeTab === tab ? "bg-primary text-on-primary border-primary" : "bg-transparent text-muted border-outline-variant hover:border-outline"
-            }`}
+            className={`whitespace-nowrap px-5 py-2.5 rounded-full font-medium text-sm transition-all border ${activeTab === tab ? "bg-primary text-on-primary border-primary" : "bg-transparent text-muted border-outline-variant hover:border-outline"
+              }`}
           >
             {tab}
           </button>
@@ -277,7 +276,7 @@ export default function SocialPage() {
                       onClick={() => handleViewSquad(squad.id)}
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shrink-0">
                           <span className="material-symbols-outlined text-secondary text-xl">group</span>
                         </div>
                         <div className="flex-1 min-w-0">
@@ -296,12 +295,36 @@ export default function SocialPage() {
 
               <div className="space-y-3">
                 <div className="flex gap-2">
-                  <input value={squadName} onChange={(e) => setSquadName(e.target.value)} type="text" placeholder="New squad name" className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-                  <button onClick={handleCreateSquad} disabled={!squadName} className="px-5 rounded-2xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40">Create</button>
+                  <input
+                    value={squadName}
+                    onChange={(e) => setSquadName(e.target.value)}
+                    type="text"
+                    placeholder="New squad name"
+                    className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={handleCreateSquad}
+                    disabled={!squadName}
+                    className="w-28 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
+                  >
+                    Create
+                  </button>
                 </div>
                 <div className="flex gap-2">
-                  <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} type="text" placeholder="Enter invite code" className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-                  <button onClick={handleJoinSquad} disabled={!inviteCode} className="px-5 rounded-2xl bg-secondary text-on-secondary font-bold text-sm hover:opacity-90 disabled:opacity-40">Join</button>
+                  <input
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    type="text"
+                    placeholder="Enter invite code"
+                    className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={handleJoinSquad}
+                    disabled={!inviteCode}
+                    className="w-28 rounded-full bg-secondary text-on-secondary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
+                  >
+                    Join
+                  </button>
                 </div>
               </div>
             </div>
@@ -318,7 +341,7 @@ export default function SocialPage() {
 
               {/* Squad header */}
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-secondary/30 to-primary/10 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-secondary/30 to-primary/10 flex items-center justify-center">
                   <span className="material-symbols-outlined text-secondary text-3xl">group</span>
                 </div>
                 <div className="flex-1">
@@ -328,14 +351,13 @@ export default function SocialPage() {
               </div>
 
               {/* View toggle */}
-              <div className="flex p-1 bg-surface-container rounded-2xl border border-outline-variant">
+              <div className="flex p-1 bg-surface-container rounded-full border border-outline-variant">
                 {(["members", "chat"] as SquadView[]).map((view) => (
                   <button
                     key={view}
                     onClick={() => setSquadView(view)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
-                      squadView === view ? "bg-surface-container-high text-primary shadow-sm" : "text-muted hover:text-on-surface"
-                    }`}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${squadView === view ? "bg-surface-container-high text-primary shadow-sm" : "text-muted hover:text-on-surface"
+                      }`}
                   >
                     <span className="material-symbols-outlined text-sm">{view === "members" ? "group" : "forum"}</span>
                     {view}
@@ -368,7 +390,7 @@ export default function SocialPage() {
                   <SectionHeader title="MEMBERS" />
                   <AnimatedList staggerMs={80} className="space-y-2">
                     {selectedSquad.members.map((member, i) => (
-                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
                         <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
                         <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
                         <div className="flex-1 min-w-0">
@@ -407,7 +429,7 @@ export default function SocialPage() {
                     {activeChallenges.map((ch) => (
                       <SpotlightCard key={ch.id} className="p-5 cursor-pointer" onClick={() => handleViewChallenge(ch.id)}>
                         <div className="flex items-start gap-4">
-                          <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-primary">flag</span>
                           </div>
                           <div className="flex-1 min-w-0">
@@ -439,7 +461,7 @@ export default function SocialPage() {
                       {discoverable.map((ch) => (
                         <SpotlightCard key={ch.id} className="p-5 flex items-center justify-between">
                           <div className="flex items-center gap-4 flex-1 min-w-0">
-                            <div className="w-11 h-11 rounded-2xl bg-white/[0.04] flex items-center justify-center shrink-0">
+                            <div className="w-11 h-11 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0">
                               <span className="material-symbols-outlined text-muted">flag</span>
                             </div>
                             <div>
@@ -475,7 +497,7 @@ export default function SocialPage() {
               </button>
 
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="material-symbols-outlined text-primary text-2xl">flag</span>
                 </div>
                 <div>
@@ -493,7 +515,7 @@ export default function SocialPage() {
 
               <AnimatedList staggerMs={60} className="space-y-2">
                 {selectedChallenge.participants.map((p) => (
-                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
                     <GradientAvatar initials={p.display_name[0] ?? "?"} size={38} />
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
@@ -514,12 +536,11 @@ export default function SocialPage() {
               {leaderboard && leaderboard.entries.length > 0 && (
                 <>
                   <SectionHeader title="LEADERBOARD" />
-                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black">
+                  <div className="rounded-full border border-outline-variant overflow-hidden bg-black">
                     {leaderboard.entries.map((entry, i) => (
                       <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                          i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
-                        }`}>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
+                          }`}>
                           {i + 1}
                         </div>
                         <GradientAvatar initials={entry.display_name[0] ?? "?"} size={36} />
@@ -546,7 +567,7 @@ export default function SocialPage() {
                   <SectionHeader title="YOUR FRIENDS" />
                   <AnimatedList staggerMs={60} className="space-y-2">
                     {friends.map((f) => (
-                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
                         <GradientAvatar initials={f.display_name[0] ?? "?"} size={40} />
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm text-on-surface">{f.display_name}</div>
@@ -578,12 +599,12 @@ export default function SocialPage() {
                   onChange={(e) => setFriendUserId(e.target.value)}
                   type="text"
                   placeholder="Enter user ID"
-                  className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
                 />
                 <button
                   onClick={handleSendFriendRequest}
                   disabled={!friendUserId.trim()}
-                  className="px-5 rounded-2xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40"
+                  className="w-28 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
                 >
                   Add
                 </button>

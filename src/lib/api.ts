@@ -559,12 +559,20 @@ export type SquadDetail = Squad & {
   members: Friend[];
 };
 
+export type SquadMessageReaction = {
+  message_id: string;
+  user_id: string;
+  display_name: string;
+  emoji: string;
+};
+
 export type SquadMessageResponse = {
   id: string;
   squad_id: string;
   user_id: string;
   display_name: string;
   content: string;
+  reactions: SquadMessageReaction[];
   created_at: string;
 };
 
