@@ -59,6 +59,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         />
         <link rel="apple-touch-icon" href="/icons/manifest-icon-192.maskable.png" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="font-body antialiased bg-[#fafaf5] text-on-surface min-h-screen">
         <TRPCReactProvider>
