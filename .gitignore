@@ -47,3 +47,10 @@ yarn-error.log*
 public/sw.js
 public/workbox-*.js
 public/swe-worker-*.js
+
+# ralph loop
+/.claude/
+ralph.sh
+PROMPT.md
+CREATE-PROGRESS.md
+PROGRESS.md
