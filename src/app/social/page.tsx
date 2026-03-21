@@ -8,9 +8,19 @@ import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedList } from "~/components/ui/AnimatedList";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { social, squads as squadsAPI, challenges as challengesAPI, gamification } from "~/lib/api";
-import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, FriendRequest } from "~/lib/api";
+import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail } from "~/lib/api";
 
 type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
+
+const EVENT_ICONS: Record<string, string> = {
+  intent_cancelled: "block",
+  intent_accepted: "check_circle",
+  streak_milestone: "local_fire_department",
+  challenge_joined: "flag",
+  challenge_completed: "emoji_events",
+  savings_milestone: "savings",
+  squad_joined: "group",
+};
 
 export default function SocialPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Feed");
@@ -23,6 +33,7 @@ export default function SocialPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [squadName, setSquadName] = useState("");
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeDetail | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<SquadDetail | null>(null);
   const [friendUserId, setFriendUserId] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -67,6 +78,14 @@ export default function SocialPage() {
     try {
       await squadsAPI.leave(id);
       setMySquads((prev) => prev.filter((s) => s.id !== id));
+      if (selectedSquad?.id === id) setSelectedSquad(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleViewSquad = async (id: string) => {
+    try {
+      const detail = await squadsAPI.get(id);
+      setSelectedSquad(detail);
     } catch (e) { console.error(e); }
   };
 
@@ -99,6 +118,23 @@ export default function SocialPage() {
     } catch (e) { console.error(e); }
   };
 
+  // Group feed items by date
+  const groupedFeed = feed.reduce<Record<string, FeedItem[]>>((acc, item) => {
+    const date = new Date(item.created_at);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    let label: string;
+    if (date.toDateString() === today.toDateString()) label = "Today";
+    else if (date.toDateString() === yesterday.toDateString()) label = "Yesterday";
+    else label = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+    if (!acc[label]) acc[label] = [];
+    acc[label]!.push(item);
+    return acc;
+  }, {});
+
   return (
     <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body">
       {/* Header */}
@@ -107,11 +143,11 @@ export default function SocialPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto px-5 md:px-8 pb-3 scrollbar-hide">
+      <div className="flex gap-2 overflow-x-auto px-5 md:px-8 pb-4 scrollbar-hide">
         {(["Feed", "Squads", "Challenges", "Friends"] as Tab[]).map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setActiveTab(tab); setSelectedSquad(null); setSelectedChallenge(null); }}
             className={`whitespace-nowrap px-5 py-2.5 rounded-full font-medium text-sm transition-all border ${
               activeTab === tab ? "bg-primary text-on-primary border-primary" : "bg-transparent text-muted border-outline-variant hover:border-outline"
             }`}
@@ -121,186 +157,362 @@ export default function SocialPage() {
         ))}
       </div>
 
-      <Divider />
-
       {loading ? (
         <div className="flex items-center justify-center py-20"><span className="material-symbols-outlined text-3xl text-muted animate-spin">progress_activity</span></div>
       ) : (
-        <section className="mt-4">
-          {/* FEED */}
+        <section>
+          {/* ─── FEED ─── */}
           {activeTab === "Feed" && (
             <div className="px-5 md:px-8">
               {feed.length === 0 ? (
-                <p className="text-muted text-center py-10">No activity yet. Add friends to see their progress!</p>
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">group</span>
+                  </div>
+                  <p className="text-muted text-sm">No activity yet. Add friends to see their progress!</p>
+                </div>
               ) : (
-                <AnimatedList staggerMs={60} className="space-y-5">
-                  {feed.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      <GradientAvatar initials={item.display_name?.[0] ?? "?"} size={40} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-on-surface leading-snug">{item.message}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString()}</p>
-                      </div>
+                <div className="space-y-6">
+                  {Object.entries(groupedFeed).map(([dateLabel, items]) => (
+                    <div key={dateLabel}>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">{dateLabel}</div>
+                      <AnimatedList staggerMs={50} className="space-y-0">
+                        {items.map((item, idx) => (
+                          <div key={item.id}>
+                            <div className="flex items-start gap-3 py-3">
+                              <GradientAvatar initials={item.display_name?.[0] ?? "?"} size={38} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-on-surface leading-snug">
+                                  <span className="font-bold">{item.display_name}</span>{" "}
+                                  {item.message.replace(item.display_name ?? "", "").trim()}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">
+                                  {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                </p>
+                              </div>
+                              <div className="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0 mt-0.5">
+                                <span className="material-symbols-outlined text-muted text-[16px]">
+                                  {EVENT_ICONS[item.event_type] ?? "notifications"}
+                                </span>
+                              </div>
+                            </div>
+                            {idx < items.length - 1 && <div className="h-px bg-white/[0.04] ml-[50px]" />}
+                          </div>
+                        ))}
+                      </AnimatedList>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── SQUADS ─── */}
+          {activeTab === "Squads" && !selectedSquad && (
+            <div className="px-5 md:px-8 space-y-4">
+              <SectionHeader title="YOUR SQUADS" />
+
+              {mySquads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">group_add</span>
+                  </div>
+                  <p className="text-muted text-sm">No squads yet. Create one or join with a code!</p>
+                </div>
+              ) : (
+                <AnimatedList staggerMs={80} className="space-y-3">
+                  {mySquads.map((squad) => (
+                    <SpotlightCard
+                      key={squad.id}
+                      className="p-5 cursor-pointer"
+                      onClick={() => handleViewSquad(squad.id)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-secondary text-xl">group</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-headline font-bold text-base text-on-surface">{squad.name}</h3>
+                          <p className="text-xs text-muted mt-0.5">{squad.member_count} members</p>
+                        </div>
+                        <span className="material-symbols-outlined text-muted text-lg">chevron_right</span>
+                      </div>
+                    </SpotlightCard>
                   ))}
                 </AnimatedList>
               )}
-            </div>
-          )}
 
-          {/* SQUADS */}
-          {activeTab === "Squads" && (
-            <div className="px-5 md:px-8 space-y-4">
-              {mySquads.map((squad) => (
-                <SpotlightCard key={squad.id} className="p-5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-headline font-bold text-xl text-on-surface">{squad.name}</h3>
-                      <p className="text-xs text-muted">{squad.member_count} members</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-secondary bg-secondary/10 px-2 py-1 rounded">
-                        {squad.invite_code}
-                      </div>
-                      <button onClick={() => handleLeaveSquad(squad.id)} className="flex items-center gap-1 px-3 py-1 rounded-full border border-outline-variant text-muted text-xs hover:border-error hover:text-error transition-colors">
-                        <span className="material-symbols-outlined text-sm">logout</span>
-                        Leave
-                      </button>
-                    </div>
-                  </div>
-                </SpotlightCard>
-              ))}
+              <Divider className="mt-2" />
+              <SectionHeader title="JOIN OR CREATE" />
 
-              <div className="flex gap-2">
-                <input value={squadName} onChange={(e) => setSquadName(e.target.value)} type="text" placeholder="New squad name" className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-                <button onClick={handleCreateSquad} className="px-5 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90">Create</button>
-              </div>
-
-              <div className="flex gap-2">
-                <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} type="text" placeholder="Invite code" className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-                <button onClick={handleJoinSquad} className="px-6 rounded-full bg-secondary text-on-secondary font-bold text-sm hover:opacity-90">Join</button>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input value={squadName} onChange={(e) => setSquadName(e.target.value)} type="text" placeholder="New squad name" className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
+                  <button onClick={handleCreateSquad} disabled={!squadName} className="px-5 rounded-2xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40">Create</button>
+                </div>
+                <div className="flex gap-2">
+                  <input value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} type="text" placeholder="Enter invite code" className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
+                  <button onClick={handleJoinSquad} disabled={!inviteCode} className="px-5 rounded-2xl bg-secondary text-on-secondary font-bold text-sm hover:opacity-90 disabled:opacity-40">Join</button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* CHALLENGES */}
-          {activeTab === "Challenges" && (
-            <div className="px-5 md:px-8 space-y-6">
-              {activeChallenges.length > 0 && (
+          {/* ─── SQUAD DETAIL ─── */}
+          {activeTab === "Squads" && selectedSquad && (
+            <div className="px-5 md:px-8 space-y-5">
+              {/* Back button */}
+              <button onClick={() => setSelectedSquad(null)} className="flex items-center gap-1 text-sm text-muted hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                All Squads
+              </button>
+
+              {/* Squad header */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-secondary/30 to-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-secondary text-3xl">group</span>
+                </div>
+                <div className="flex-1">
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">{selectedSquad.name}</h2>
+                  <p className="text-sm text-muted">{selectedSquad.member_count} members</p>
+                </div>
+              </div>
+
+              {/* Invite code */}
+              <SpotlightCard className="p-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs uppercase font-bold tracking-widest text-muted mb-3">Active</h3>
-                  {activeChallenges.map((ch) => (
-                    <SpotlightCard key={ch.id} className="p-5 mb-3 cursor-pointer" onClick={() => handleViewChallenge(ch.id)}>
-                      <h4 className="font-headline font-bold text-lg text-on-surface">{ch.title}</h4>
-                      <p className="text-sm text-muted mt-1">{ch.description}</p>
-                      <div className="flex justify-between text-xs mt-3 text-muted">
-                        <span>{ch.participant_count} participants</span>
-                        <span>{ch.start_date} → {ch.end_date}</span>
-                      </div>
-                    </SpotlightCard>
-                  ))}
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Invite Code</div>
+                  <div className="font-mono font-bold text-lg text-primary mt-0.5">{selectedSquad.invite_code}</div>
                 </div>
-              )}
+                <button
+                  onClick={() => navigator.clipboard?.writeText(selectedSquad.invite_code)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant text-sm text-muted hover:text-on-surface hover:border-outline transition-colors"
+                >
+                  <span className="material-symbols-outlined text-sm">content_copy</span>
+                  Copy
+                </button>
+              </SpotlightCard>
 
-              <div>
-                <h3 className="text-xs uppercase font-bold tracking-widest text-muted mb-3">Discover</h3>
-                {allChallenges.filter((c) => !activeChallenges.find((a) => a.id === c.id)).map((ch) => (
-                  <SpotlightCard key={ch.id} className="p-5 mb-3 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-on-surface">{ch.title}</h4>
-                      <p className="text-xs text-muted">{ch.participant_count} participants</p>
+              <Divider />
+
+              {/* Members */}
+              <SectionHeader title="MEMBERS" />
+              <AnimatedList staggerMs={80} className="space-y-2">
+                {selectedSquad.members.map((member, i) => (
+                  <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                    <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
+                    <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-sm text-on-surface">{member.display_name}</div>
+                      <div className="text-xs text-muted">{member.total_xp} XP</div>
                     </div>
-                    <button onClick={() => handleJoinChallenge(ch.id)} className="px-4 py-2 rounded-full border border-primary text-primary text-sm font-bold hover:bg-primary/10">Join</button>
-                  </SpotlightCard>
-                ))}
-                {allChallenges.length === 0 && <p className="text-muted text-center py-6">No challenges available</p>}
-              </div>
-
-              {selectedChallenge && (
-                <div className="mt-4 space-y-3">
-                  <Divider />
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-headline font-bold text-lg text-on-surface">{selectedChallenge.title}</h3>
-                    <button onClick={() => setSelectedChallenge(null)} className="text-xs font-bold text-muted hover:text-on-surface">Close</button>
+                    <div className="flex items-center gap-1 text-secondary text-sm font-bold">
+                      <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                      {member.current_streak_days}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted">{selectedChallenge.description}</p>
-                  <SectionHeader title="PARTICIPANTS" />
-                  {selectedChallenge.participants.map((p) => (
-                    <SpotlightCard key={p.user_id} className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <GradientAvatar initials={p.display_name[0] ?? "?"} size={32} />
-                        <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
-                      </div>
-                      <span className={`text-xs font-bold uppercase px-2 py-1 rounded ${p.status === "completed" ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"}`}>
-                        {p.status}
-                      </span>
-                    </SpotlightCard>
-                  ))}
-                </div>
-              )}
+                ))}
+              </AnimatedList>
+
+              <Divider />
+
+              {/* Leave squad */}
+              <button
+                onClick={() => handleLeaveSquad(selectedSquad.id)}
+                className="w-full py-3 rounded-full border border-error/30 text-error text-sm font-bold hover:bg-error/5 transition-colors"
+              >
+                Leave Squad
+              </button>
             </div>
           )}
 
-          {/* FRIENDS */}
-          {activeTab === "Friends" && (
-            <div className="px-5 md:px-8 space-y-4">
-              {leaderboard && leaderboard.entries.length > 0 ? (
-                <div className="border border-outline-variant rounded-2xl overflow-hidden bg-surface">
-                  {leaderboard.entries.map((entry, i) => (
-                    <div key={entry.user_id} className="p-4 flex items-center justify-between border-b border-outline-variant last:border-b-0 hover:bg-white/[0.02] transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-6 text-center text-muted font-bold text-sm">{i + 1}</div>
-                        <GradientAvatar initials={entry.display_name[0] ?? "?"} size={36} />
-                        <div className="font-bold text-sm">{entry.display_name}</div>
-                      </div>
-                      <div className="flex items-center gap-3 text-right">
-                        <div className="flex items-center gap-1 text-secondary text-sm font-bold">
-                          <span className="material-symbols-outlined text-sm">local_fire_department</span>
-                          <AnimatedCounter value={entry.current_streak_days} />
-                        </div>
-                        <div className="text-xs text-muted w-14">
-                          <AnimatedCounter value={entry.total_xp} /> XP
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted text-center py-10">Add friends to see the leaderboard!</p>
-              )}
-
-              {friends.length > 0 && (
+          {/* ─── CHALLENGES ─── */}
+          {activeTab === "Challenges" && !selectedChallenge && (
+            <div className="px-5 md:px-8 space-y-5">
+              {activeChallenges.length > 0 && (
                 <>
-                  <SectionHeader title="YOUR FRIENDS" />
-                  {friends.map((f) => (
-                    <SpotlightCard key={f.id} className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <GradientAvatar initials={f.display_name[0] ?? "?"} size={36} />
-                        <span className="font-bold text-sm">{f.display_name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted">{f.total_xp} XP</span>
-                        <button onClick={() => handleUnfriend(f.id)} className="flex items-center gap-1 px-3 py-1 rounded-full border border-outline-variant text-muted text-xs hover:border-error hover:text-error transition-colors">
-                          <span className="material-symbols-outlined text-sm">person_remove</span>
-                          Unfriend
-                        </button>
-                      </div>
-                    </SpotlightCard>
-                  ))}
+                  <SectionHeader title="ACTIVE" />
+                  <AnimatedList staggerMs={80} className="space-y-3">
+                    {activeChallenges.map((ch) => (
+                      <SpotlightCard key={ch.id} className="p-5 cursor-pointer" onClick={() => handleViewChallenge(ch.id)}>
+                        <div className="flex items-start gap-4">
+                          <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-primary">flag</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-headline font-bold text-base text-on-surface">{ch.title}</h4>
+                            <p className="text-xs text-muted mt-1 line-clamp-1">{ch.description}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-muted">
+                              <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">group</span>
+                                {ch.participant_count}
+                              </span>
+                              <span>{ch.start_date} → {ch.end_date}</span>
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-muted text-lg mt-1">chevron_right</span>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </AnimatedList>
                 </>
               )}
 
-              <div className="mt-4 flex gap-2">
+              {(() => {
+                const discoverable = allChallenges.filter((c) => !activeChallenges.find((a) => a.id === c.id));
+                return discoverable.length > 0 ? (
+                  <>
+                    <Divider />
+                    <SectionHeader title="DISCOVER" />
+                    <AnimatedList staggerMs={80} className="space-y-3">
+                      {discoverable.map((ch) => (
+                        <SpotlightCard key={ch.id} className="p-5 flex items-center justify-between">
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="w-11 h-11 rounded-2xl bg-white/[0.04] flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-muted">flag</span>
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-sm text-on-surface">{ch.title}</h4>
+                              <p className="text-xs text-muted mt-0.5">{ch.participant_count} participants</p>
+                            </div>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
+                        </SpotlightCard>
+                      ))}
+                    </AnimatedList>
+                  </>
+                ) : null;
+              })()}
+
+              {activeChallenges.length === 0 && allChallenges.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">flag</span>
+                  </div>
+                  <p className="text-muted text-sm">No challenges available yet.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── CHALLENGE DETAIL ─── */}
+          {activeTab === "Challenges" && selectedChallenge && (
+            <div className="px-5 md:px-8 space-y-5">
+              <button onClick={() => setSelectedChallenge(null)} className="flex items-center gap-1 text-sm text-muted hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                All Challenges
+              </button>
+
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-2xl">flag</span>
+                </div>
+                <div>
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">{selectedChallenge.title}</h2>
+                  <p className="text-sm text-muted mt-0.5">{selectedChallenge.start_date} → {selectedChallenge.end_date}</p>
+                </div>
+              </div>
+
+              {selectedChallenge.description && (
+                <p className="text-sm text-muted leading-relaxed">{selectedChallenge.description}</p>
+              )}
+
+              <Divider />
+              <SectionHeader title={`PARTICIPANTS (${selectedChallenge.participants.length})`} />
+
+              <AnimatedList staggerMs={60} className="space-y-2">
+                {selectedChallenge.participants.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                    <GradientAvatar initials={p.display_name[0] ?? "?"} size={38} />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${p.status === "completed" ? "bg-primary/15 text-primary" : "bg-secondary/15 text-secondary"}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                ))}
+              </AnimatedList>
+            </div>
+          )}
+
+          {/* ─── FRIENDS ─── */}
+          {activeTab === "Friends" && (
+            <div className="px-5 md:px-8 space-y-5">
+              {/* Leaderboard */}
+              {leaderboard && leaderboard.entries.length > 0 && (
+                <>
+                  <SectionHeader title="LEADERBOARD" />
+                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black">
+                    {leaderboard.entries.map((entry, i) => (
+                      <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
+                        }`}>
+                          {i + 1}
+                        </div>
+                        <GradientAvatar initials={entry.display_name[0] ?? "?"} size={36} />
+                        <div className="flex-1 min-w-0 font-bold text-sm text-on-surface">{entry.display_name}</div>
+                        <div className="flex items-center gap-3 text-right">
+                          <div className="flex items-center gap-1 text-secondary text-sm font-bold">
+                            <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                            <AnimatedCounter value={entry.current_streak_days} />
+                          </div>
+                          <div className="text-xs text-muted w-16 text-right">
+                            <AnimatedCounter value={entry.total_xp} /> XP
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Friends list */}
+              {friends.length > 0 && (
+                <>
+                  <Divider />
+                  <SectionHeader title="YOUR FRIENDS" />
+                  <AnimatedList staggerMs={60} className="space-y-2">
+                    {friends.map((f) => (
+                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                        <GradientAvatar initials={f.display_name[0] ?? "?"} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-on-surface">{f.display_name}</div>
+                          <div className="text-xs text-muted">{f.total_xp} XP · {f.current_streak_days}d streak</div>
+                        </div>
+                        <button onClick={() => handleUnfriend(f.id)} className="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-error hover:bg-error/5 transition-colors" title="Unfriend">
+                          <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                        </button>
+                      </div>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
+
+              {!leaderboard?.entries.length && !friends.length && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">person_add</span>
+                  </div>
+                  <p className="text-muted text-sm">Add friends to see the leaderboard!</p>
+                </div>
+              )}
+
+              <Divider />
+              <SectionHeader title="ADD FRIEND" />
+              <div className="flex gap-2">
                 <input
                   value={friendUserId}
                   onChange={(e) => setFriendUserId(e.target.value)}
                   type="text"
-                  placeholder="Friend's user ID"
-                  className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  placeholder="Enter user ID"
+                  className="flex-1 bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
                 />
                 <button
                   onClick={handleSendFriendRequest}
-                  className="px-5 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90"
+                  disabled={!friendUserId.trim()}
+                  className="px-5 rounded-2xl bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40"
                 >
                   Add
                 </button>
