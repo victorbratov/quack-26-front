@@ -20,8 +20,8 @@ export const auth = betterAuth({
     },
   },
   account: {
-		skipStateCookieCheck: true
-	},
+    skipStateCookieCheck: true
+  },
   plugins: [
     dash({
       apiKey: env.BETTER_AUTH_SECRET,
