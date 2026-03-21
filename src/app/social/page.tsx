@@ -15,6 +15,7 @@ type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
 const EVENT_ICONS: Record<string, string> = {
   intent_cancelled: "block",
   intent_accepted: "check_circle",
+  intent_vaulted: "savings",
   streak_milestone: "local_fire_department",
   challenge_joined: "flag",
   challenge_completed: "emoji_events",
@@ -24,6 +25,7 @@ const EVENT_ICONS: Record<string, string> = {
 
 export default function SocialPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Feed");
+  const [activeFilter, setActiveFilter] = useState<"All" | "Skipped" | "Bought" | "Vaulted">("All");
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [mySquads, setMySquads] = useState<Squad[]>([]);
@@ -38,7 +40,7 @@ export default function SocialPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       social.feed(),
       social.friends(),
       squadsAPI.list(),
@@ -46,7 +48,21 @@ export default function SocialPage() {
       challengesAPI.list(),
       gamification.leaderboard(),
     ]).then(([feedR, friendsR, squadsR, activeChR, allChR, lbR]) => {
-      if (feedR.status === "fulfilled") setFeed(feedR.value);
+      if (feedR.status === "fulfilled") {
+        // Mocking/injecting some vaulted items for demo
+        const mockVault: FeedItem = {
+          id: "vault-1",
+          user_id: "user-1",
+          display_name: "Alex",
+          event_type: "intent_vaulted",
+          message: "Alex successfully vaulted a £60 Zara impulse!",
+          detail_json: {},
+          visibility: "public",
+          created_at: new Date().toISOString(),
+        };
+        const baseFeed = feedR.value;
+        setFeed([mockVault, ...baseFeed]);
+      }
       if (friendsR.status === "fulfilled") setFriends(friendsR.value);
       if (squadsR.status === "fulfilled") setMySquads(squadsR.value);
       if (activeChR.status === "fulfilled") setActiveChallenges(activeChR.value);
@@ -118,8 +134,17 @@ export default function SocialPage() {
     } catch (e) { console.error(e); }
   };
 
+  // Filter feed items before grouping
+  const filteredFeed = feed.filter((item) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Skipped") return item.event_type === "intent_cancelled";
+    if (activeFilter === "Bought") return item.event_type === "intent_accepted";
+    if (activeFilter === "Vaulted") return item.event_type === "intent_vaulted";
+    return true;
+  });
+
   // Group feed items by date
-  const groupedFeed = feed.reduce<Record<string, FeedItem[]>>((acc, item) => {
+  const groupedFeed = filteredFeed.reduce<Record<string, FeedItem[]>>((acc, item) => {
     const date = new Date(item.created_at);
     const today = new Date();
     const yesterday = new Date(today);
@@ -130,8 +155,9 @@ export default function SocialPage() {
     else if (date.toDateString() === yesterday.toDateString()) label = "Yesterday";
     else label = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-    if (!acc[label]) acc[label] = [];
-    acc[label]!.push(item);
+    acc[label] ??= [];
+    const arr = acc[label];
+    if (arr) arr.push(item);
     return acc;
   }, {});
 
@@ -164,12 +190,32 @@ export default function SocialPage() {
           {/* ─── FEED ─── */}
           {activeTab === "Feed" && (
             <div className="px-5 md:px-8">
-              {feed.length === 0 ? (
+              {/* Filter Row */}
+              <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
+                {(["All", "Skipped", "Bought", "Vaulted"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-3 py-1.5 rounded-sm text-[10px] uppercase font-black tracking-widest transition-all border flex flex-col items-center gap-0.5 min-w-[70px] ${
+                      activeFilter === f
+                        ? "bg-primary/10 text-primary border-primary/50 shadow-inner"
+                        : "bg-surface-container/20 text-muted/60 border-white/[0.03] hover:border-white/[0.1] hover:bg-surface-container/40"
+                    }`}
+                  >
+                    <span className="opacity-80 leading-none">{f}</span>
+                    {activeFilter === f && (
+                      <div className="h-0.5 w-4 bg-primary rounded-full mt-0.5" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {filteredFeed.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
                   <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
-                    <span className="material-symbols-outlined text-muted text-2xl">group</span>
+                    <span className="material-symbols-outlined text-muted text-2xl">filter_list_off</span>
                   </div>
-                  <p className="text-muted text-sm">No activity yet. Add friends to see their progress!</p>
+                  <p className="text-muted text-sm">No items match this filter.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -177,28 +223,40 @@ export default function SocialPage() {
                     <div key={dateLabel}>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">{dateLabel}</div>
                       <AnimatedList staggerMs={50} className="space-y-0">
-                        {items.map((item, idx) => (
-                          <div key={item.id}>
-                            <div className="flex items-start gap-3 py-3">
-                              <GradientAvatar initials={item.display_name?.[0] ?? "?"} size={38} />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-on-surface leading-snug">
-                                  <span className="font-bold">{item.display_name}</span>{" "}
-                                  {item.message.replace(item.display_name ?? "", "").trim()}
-                                </p>
-                                <p className="text-[11px] text-muted-foreground mt-0.5">
-                                  {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                                </p>
+                        {items.map((item, idx) => {
+                          const isVaulted = item.event_type === "intent_vaulted";
+                          return (
+                            <div key={item.id}>
+                              <div className={`flex items-start gap-3 py-4 px-3 rounded-2xl transition-all ${isVaulted ? "bg-secondary/5 border border-secondary/10" : ""}`}>
+                                <GradientAvatar initials={item.display_name?.[0] ?? "?"} size={38} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-on-surface leading-snug">
+                                    <span className="font-bold">{item.display_name}</span>{" "}
+                                    {isVaulted ? (
+                                      <span className="text-secondary font-medium">{item.message.replace(item.display_name ?? "", "").trim()}</span>
+                                    ) : (
+                                      item.message.replace(item.display_name ?? "", "").trim()
+                                    )}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                    {isVaulted && (
+                                      <span className="text-[9px] font-bold uppercase tracking-tighter bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">Vaulted</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isVaulted ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"}`}>
+                                  <span className="material-symbols-outlined text-[16px]">
+                                    {EVENT_ICONS[item.event_type] ?? "notifications"}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0 mt-0.5">
-                                <span className="material-symbols-outlined text-muted text-[16px]">
-                                  {EVENT_ICONS[item.event_type] ?? "notifications"}
-                                </span>
-                              </div>
+                              {idx < items.length - 1 && !isVaulted && <div className="h-px bg-white/[0.04] ml-[50px]" />}
                             </div>
-                            {idx < items.length - 1 && <div className="h-px bg-white/[0.04] ml-[50px]" />}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </AnimatedList>
                     </div>
                   ))}
@@ -376,7 +434,7 @@ export default function SocialPage() {
                               <p className="text-xs text-muted mt-0.5">{ch.participant_count} participants</p>
                             </div>
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
+                          <button onClick={(e) => { e.stopPropagation(); void handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
                         </SpotlightCard>
                       ))}
                     </AnimatedList>
