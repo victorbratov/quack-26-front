@@ -10,17 +10,34 @@ import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { ProgressRing } from "~/components/ui/ProgressRing";
 import { AnimatedList } from "~/components/ui/AnimatedList";
 import { authClient } from "~/server/better-auth/client";
+import { AgentReasoningCard } from "~/components/ui/AgentReasoning";
 import {
   auth, goals as goalsAPI, ghostSpend, gamification, benchmarks,
-  learning, projections, transactions, clearAuthToken,
+  learning, projections, transactions, debrief as debriefAPI, clearAuthToken,
 } from "~/lib/api";
 import type {
   AuthUser, SavingsGoal, RecurringTransaction, GhostSavingsPotential,
   XPInfo, Streak, SpendingBenchmark, LearningModule, LearningProgress,
   ProjectionSummary, CategorySummary, Milestone, WhatIfProjection, LearningModuleDetail,
+  Debrief,
 } from "~/lib/api";
 
-type Tab = "Goals" | "Insights" | "Ghost Subs" | "Learning" | "Transactions";
+type Tab = "Goals" | "Insights" | "Ghost Subs" | "Learning" | "Transactions" | "Debrief";
+
+function extractDebriefText(data: Record<string, unknown> | null | undefined): string {
+  if (!data) return "";
+  const candidates = [
+    data.summary, data.insight, data.suggestion, data.encouragement,
+    data.nudge_recommendation, data.behavioral_prediction, data.reasoning,
+    data.next_week_plan, data.analysis,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 10) return c;
+  }
+  const allStrings = Object.values(data).filter((v): v is string => typeof v === "string" && v.length > 20);
+  if (allStrings.length > 0) return allStrings[0]!;
+  return JSON.stringify(data).slice(0, 300);
+}
 
 export default function ProgressPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Goals");
@@ -47,6 +64,9 @@ export default function ProgressPage() {
   const [whatIfResult, setWhatIfResult] = useState<WhatIfProjection | null>(null);
   const [whatIfRecurring, setWhatIfRecurring] = useState(true);
   const [selectedModule, setSelectedModule] = useState<LearningModuleDetail | null>(null);
+  const [debriefList, setDebriefList] = useState<Debrief[]>([]);
+  const [selectedDebrief, setSelectedDebrief] = useState<Debrief | null>(null);
+  const [generatingDebrief, setGeneratingDebrief] = useState(false);
 
   useEffect(() => {
     Promise.allSettled([
@@ -62,7 +82,8 @@ export default function ProgressPage() {
       projections.summary(),
       transactions.summary(),
       gamification.milestones(),
-    ]).then(([userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, modR, learnProgR, projR, txSumR, milestonesR]) => {
+      debriefAPI.history(),
+    ]).then(([userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, modR, learnProgR, projR, txSumR, milestonesR, debriefHistR]) => {
       if (userR.status === "fulfilled") setUser(userR.value);
       if (goalsR.status === "fulfilled") setGoalsList(goalsR.value);
       if (ghostR.status === "fulfilled") setGhostList(ghostR.value);
@@ -75,6 +96,7 @@ export default function ProgressPage() {
       if (projR.status === "fulfilled") setProjSummary(projR.value);
       if (txSumR.status === "fulfilled") setSpendingSummary(txSumR.value);
       if (milestonesR.status === "fulfilled") setMilestones(milestonesR.value);
+      if (debriefHistR.status === "fulfilled") setDebriefList(debriefHistR.value);
       setLoading(false);
     });
   }, []);
@@ -137,6 +159,19 @@ export default function ProgressPage() {
     } catch (e) { console.error(e); }
   };
 
+  const handleGenerateDebrief = async () => {
+    setGeneratingDebrief(true);
+    try {
+      const newDebrief = await debriefAPI.generate();
+      setDebriefList((prev) => [newDebrief, ...prev]);
+      setSelectedDebrief(newDebrief);
+      setGeneratingDebrief(false);
+    } catch (e) {
+      console.error(e);
+      setGeneratingDebrief(false);
+    }
+  };
+
   const handleCompleteModule = async (id: string) => {
     try {
       await learning.complete(id);
@@ -153,7 +188,7 @@ export default function ProgressPage() {
   };
 
   const mainStreak = streaks.find((s) => s.streak_type === "daily_savings") ?? streaks[0];
-  const chips: Tab[] = ["Goals", "Insights", "Ghost Subs", "Learning", "Transactions"];
+  const chips: Tab[] = ["Goals", "Insights", "Ghost Subs", "Learning", "Transactions", "Debrief"];
 
   if (loading) {
     return (
@@ -430,6 +465,97 @@ export default function ProgressPage() {
                   </button>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* DEBRIEF */}
+        {activeTab === "Debrief" && (
+          <div className="space-y-4">
+            {/* Generate button */}
+            <button
+              onClick={handleGenerateDebrief}
+              disabled={generatingDebrief}
+              className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-lg">{generatingDebrief ? "sync" : "auto_awesome"}</span>
+              {generatingDebrief ? "Generating..." : "Generate Weekly Debrief"}
+            </button>
+
+            {/* Selected debrief detail */}
+            {selectedDebrief && (
+              <div className="space-y-3 animate-slide-up">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted">
+                    {selectedDebrief.week_start} — {selectedDebrief.week_end}
+                  </div>
+                  <button onClick={() => setSelectedDebrief(null)} className="text-xs font-bold text-muted hover:text-on-surface">Close</button>
+                </div>
+
+                {/* Analyst */}
+                <AgentReasoningCard
+                  label="Analyst"
+                  icon="analytics"
+                  color="text-secondary"
+                  status="COMPLETED"
+                  summary={extractDebriefText(selectedDebrief.analyst_summary)}
+                  defaultOpen
+                />
+
+                {/* Behaviorist */}
+                <AgentReasoningCard
+                  label="Behaviorist"
+                  icon="psychology"
+                  color="text-primary"
+                  status="COMPLETED"
+                  summary={extractDebriefText(selectedDebrief.behaviorist_insights)}
+                  defaultOpen
+                />
+
+                {/* Mentor Goals */}
+                <AgentReasoningCard
+                  label="Mentor"
+                  icon="gavel"
+                  color="text-secondary"
+                  status="COMPLETED"
+                  summary={extractDebriefText(selectedDebrief.mentor_goals)}
+                  defaultOpen
+                />
+                {/* empty — content shown inline in AgentReasoningCard above */}
+              </div>
+            )}
+
+            {/* Past debriefs list */}
+            {!selectedDebrief && (
+              <>
+                {debriefList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                      <span className="material-symbols-outlined text-muted text-2xl">summarize</span>
+                    </div>
+                    <p className="text-muted text-sm">No debriefs yet. Generate your first one above!</p>
+                  </div>
+                ) : (
+                  <AnimatedList staggerMs={80} className="space-y-3">
+                    {debriefList.map((d) => (
+                      <SpotlightCard key={d.id} className="p-4 cursor-pointer" onClick={() => setSelectedDebrief(d)}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-primary text-lg">summarize</span>
+                            </div>
+                            <div>
+                              <div className="font-bold text-sm text-on-surface">{d.week_start} — {d.week_end}</div>
+                              <div className="text-xs text-muted mt-0.5">{d.analyst_summary?.total_spent != null ? `£${d.analyst_summary.total_spent.toLocaleString()} spent` : ""}{d.analyst_summary?.trend ? ` · ${d.analyst_summary.trend}` : ""}</div>
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-muted text-lg">chevron_right</span>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </AnimatedList>
+                )}
+              </>
             )}
           </div>
         )}
