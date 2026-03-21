@@ -517,7 +517,7 @@ export default function Home() {
                   <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400">The Numbers</div>
                 </div>
                 <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.analyst_summary.insight}</p>
-                {latestDebrief.analyst_summary.top_categories.length > 0 && (
+                {latestDebrief.analyst_summary.top_categories?.length > 0 && (
                   <div className="flex gap-2 flex-wrap">
                     {latestDebrief.analyst_summary.top_categories.map((cat) => (
                       <span key={cat} className="text-[10px] font-bold uppercase tracking-widest text-muted bg-white/[0.04] px-2.5 py-1 rounded-full">
@@ -539,7 +539,7 @@ export default function Home() {
                   <div className="text-[11px] font-bold uppercase tracking-widest text-purple-400">Behavioral Patterns</div>
                 </div>
                 <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.behaviorist_insights.suggestion}</p>
-                {latestDebrief.behaviorist_insights.patterns.length > 0 && (
+                {latestDebrief.behaviorist_insights.patterns?.length > 0 && (
                   <div className="space-y-1.5">
                     {latestDebrief.behaviorist_insights.patterns.map((p, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs text-muted">
