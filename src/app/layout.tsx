@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     title: "Your App Name",
     startupImage: [
       {
-        url: "/splash/apple-splash-1170-2532.png",
+        url: "/icons/apple-splash-1170-2532.png",
         media:
           "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
       },
@@ -58,7 +58,7 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         />
-        <link rel="apple-touch-icon" href="/public/icons/manifest-icon-192.maskable.png" />
+        <link rel="apple-touch-icon" href="/icons/manifest-icon-192.maskable.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="font-body antialiased bg-[#fafaf5] text-on-surface min-h-screen">
