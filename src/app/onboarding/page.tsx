@@ -168,7 +168,7 @@ export default function OnboardingPage() {
             {[{ id: "rent", label: "Rent" }, { id: "phoneBill", label: "Phone Bill" }].map((f) => (
               <div key={f.id} className="flex items-center justify-between bg-surface-container p-4 rounded-2xl">
                 <span className="text-on-surface text-sm">{f.label}</span>
-                <input type="number" value={(data as unknown as Record<string, number>)[f.id] || ""} onChange={(e) => updateData({ [f.id]: Number(e.target.value) })}
+                <input type="number" value={(data as unknown as Record<string, number>)[f.id] ?? ""} onChange={(e) => updateData({ [f.id]: Number(e.target.value) })}
                   className="bg-transparent text-right w-24 outline-none text-primary font-bold" placeholder="0" />
               </div>
             ))}

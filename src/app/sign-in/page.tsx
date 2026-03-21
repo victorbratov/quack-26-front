@@ -29,7 +29,7 @@ export default function SignInPage() {
           return;
         }
       } else {
-        const result = await authClient.signUp.email({ email, password, name: name || email.split("@")[0] || "User" });
+        const result = await authClient.signUp.email({ email, password, name: name ?? email.split("@")[0] ?? "User" });
         if (result.error) {
           setError(String(result.error.message ?? "Sign up failed"));
           setLoading(false);

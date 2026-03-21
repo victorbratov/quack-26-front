@@ -66,7 +66,7 @@ export default function ProgressPage() {
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       auth.me(),
       goalsAPI.list(),
       ghostSpend.list(),
@@ -164,7 +164,7 @@ export default function ProgressPage() {
 
   const handleLogout = async () => {
     clearAuthToken();
-    await authClient.signOut().catch(() => {});
+    void authClient.signOut().catch(() => undefined);
     router.push("/sign-in");
   };
 
@@ -398,6 +398,8 @@ export default function ProgressPage() {
             )}
           </div>
         )}
+
+
 
         {/* DEBRIEF */}
         {activeTab === "Debrief" && (

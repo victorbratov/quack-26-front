@@ -23,9 +23,12 @@ export default function CheckPage() {
   const [intentStats, setIntentStats] = useState<IntentStats | null>(null);
   const [loadingAgents, setLoadingAgents] = useState(0);
 
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+
   useEffect(() => {
-    transactions.summary().then(setSpendingSummary).catch(() => {});
-    intents.stats().then(setIntentStats).catch(() => {});
+    void transactions.summary().then(setSpendingSummary).catch(() => undefined);
+    void intents.stats().then(setIntentStats).catch(() => undefined);
   }, []);
 
   const handleEvaluate = async () => {
@@ -50,10 +53,19 @@ export default function CheckPage() {
     }
   };
 
-  const handleAction = async (action: "accept" | "override" | "cancel") => {
+  const handleAction = async (action: "accept" | "override" | "cancel" | "vault") => {
     if (evaluation) {
       try {
-        await intents.action(evaluation.id, action);
+        if (action === "vault") {
+          // Mock vaulting logic
+          setToastMessage(`£${evaluation.decision.original_amount} safely vaulted!`);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3000);
+          // Same backend action as cancel for now, or just mock it
+          void intents.action(evaluation.id, "cancel").catch(() => {});
+        } else {
+          void intents.action(evaluation.id, action).catch(() => {});
+        }
       } catch { /* ok */ }
     }
     setPhase("INPUT");
@@ -74,6 +86,14 @@ export default function CheckPage() {
 
   return (
     <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body relative overflow-hidden">
+      {/* Toast Notification */}
+      <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-50 transition-all duration-500 pointer-events-none ${showToast ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-8"}`}>
+        <div className="bg-primary-container text-on-primary-container px-6 py-3 rounded-2xl shadow-2xl border border-primary/20 backdrop-blur-xl flex items-center gap-3">
+          <span className="material-symbols-outlined text-primary">savings</span>
+          <span className="font-bold text-sm tracking-wide">{toastMessage}</span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="px-5 md:px-8 pt-10 pb-4">
         <div className="flex items-center justify-between">
@@ -174,9 +194,11 @@ export default function CheckPage() {
 
       {phase === "LOADING" && (
         <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-12 px-5">
-          <ProgressRing progress={loadingAgents >= 3 ? 100 : loadingAgents * 33} size={112} strokeWidth={4} color="#c9b183">
-            <span className="material-symbols-outlined text-4xl text-primary animate-pulse">blur_on</span>
-          </ProgressRing>
+          <div className="relative">
+            <ProgressRing progress={loadingAgents >= 3 ? 100 : loadingAgents * 33} size={112} strokeWidth={4} color="#c9b183">
+              <span className="material-symbols-outlined text-4xl text-primary animate-pulse">blur_on</span>
+            </ProgressRing>
+          </div>
           <AnimatedList staggerMs={600} className="space-y-3 w-full max-w-xs">
             {[
               { label: "Risk Guardian", loaded: loadingAgents >= 1 },
@@ -264,15 +286,34 @@ export default function CheckPage() {
 
           {/* Actions */}
           <div className="space-y-3">
-            <button onClick={() => handleAction("accept")} className={`w-full font-bold text-base py-4 rounded-full flex items-center justify-center gap-2 transition-all ${verdict === "allow" ? "bg-primary text-on-primary" : "bg-primary text-on-primary"}`}>
+            <button
+              onClick={() => handleAction("accept")}
+              className="w-full bg-primary text-on-primary font-bold text-base py-4 rounded-full flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98]"
+            >
               <span className="material-symbols-outlined text-lg">check_circle</span>
               {verdict === "reduce" ? `Accept £${evaluation.decision.approved_amount.toFixed(2)}` : "Proceed"}
             </button>
-            <button onClick={() => handleAction("cancel")} className="w-full border border-outline text-on-surface font-bold text-base py-4 rounded-full hover:bg-white/5 transition-all">
+
+            <button
+              onClick={() => handleAction("vault")}
+              className="w-full bg-secondary text-on-secondary font-bold text-base py-4 rounded-full flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] shadow-lg shadow-secondary/20"
+            >
+              <span className="material-symbols-outlined text-lg">savings</span>
+              Save for Later (Vault) (+20 XP)
+            </button>
+
+            <button
+              onClick={() => handleAction("cancel")}
+              className="w-full border border-outline text-on-surface font-bold text-base py-4 rounded-full hover:bg-white/5 transition-all active:scale-[0.98]"
+            >
               Cancel Purchase (+20 XP)
             </button>
+
             {verdict !== "allow" && (
-              <button onClick={() => handleAction("override")} className="w-full text-muted font-medium text-sm py-3 hover:text-on-surface transition-colors uppercase tracking-widest">
+              <button
+                onClick={() => handleAction("override")}
+                className="w-full text-muted font-medium text-sm py-3 hover:text-on-surface transition-colors uppercase tracking-widest"
+              >
                 Override — Spend £{evaluation.decision.original_amount}
               </button>
             )}
