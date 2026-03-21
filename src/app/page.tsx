@@ -178,6 +178,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [xpAnim, setXpAnim] = useState<{ id: number; text: string } | null>(null);
   const [animId, setAnimId] = useState(0);
+  const [showDebrief, setShowDebrief] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [dayCards, setDayCards] = useState<Card[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
@@ -305,14 +306,26 @@ export default function Home() {
               );
             })}
           </div>
-          <div className="flex items-center gap-3 text-xs text-muted">
-            <span className="flex items-center gap-1 text-on-surface">
-              <span className="material-symbols-outlined text-secondary text-sm">local_fire_department</span>
-              {xpInfo?.level ?? 0}
-            </span>
-            <span>
-              <AnimatedCounter value={xpInfo?.total_xp ?? 0} className="text-muted" /> XP
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 text-xs text-muted">
+              <span className="flex items-center gap-1 text-on-surface">
+                <span className="material-symbols-outlined text-secondary text-sm">local_fire_department</span>
+                {xpInfo?.level ?? 0}
+              </span>
+              <span>
+                <AnimatedCounter value={xpInfo?.total_xp ?? 0} className="text-muted" /> XP
+              </span>
+            </div>
+            {latestDebrief && (
+              <button
+                onClick={() => setShowDebrief(true)}
+                className="relative w-9 h-9 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-primary hover:border-primary/50 transition-colors"
+                title="Weekly Debrief"
+              >
+                <span className="material-symbols-outlined text-lg">summarize</span>
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-secondary rounded-full" />
+              </button>
+            )}
           </div>
         </div>
         <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-primary leading-tight">
@@ -448,20 +461,6 @@ export default function Home() {
         </>
       )}
 
-      {/* Debrief Summary */}
-      {latestDebrief && (
-        <>
-          <Divider className="mt-6" />
-          <SectionHeader title="WEEKLY DEBRIEF" />
-          <div className="px-5 md:px-8">
-            <SpotlightCard className="p-5 md:p-6">
-              <p className="text-sm md:text-base text-on-surface leading-relaxed">{latestDebrief.mentor_goals.encouragement}</p>
-              <p className="text-xs md:text-sm text-muted mt-3">{latestDebrief.analyst_summary.insight}</p>
-            </SpotlightCard>
-          </div>
-        </>
-      )}
-
       <Divider className="mt-6" />
 
       {/* CTA */}
@@ -478,6 +477,109 @@ export default function Home() {
           </ShimmerButton>
         </Link>
       </section>
+
+      {/* Debrief Modal */}
+      {showDebrief && latestDebrief && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDebrief(false)} />
+
+          {/* Sheet */}
+          <div className="relative w-full max-w-lg max-h-[85vh] bg-black border-t border-x border-white/[0.1] rounded-t-3xl overflow-y-auto animate-slide-up">
+            {/* Handle */}
+            <div className="sticky top-0 z-10 bg-black pt-3 pb-2 flex justify-center">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
+            <div className="px-6 pb-8 space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">Weekly Debrief</h2>
+                  <p className="text-xs text-muted mt-0.5">
+                    {latestDebrief.week_start} — {latestDebrief.week_end}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDebrief(false)}
+                  className="w-9 h-9 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              {/* Analyst */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-blue-400 text-lg">analytics</span>
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400">The Numbers</div>
+                </div>
+                <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.analyst_summary.insight}</p>
+                {latestDebrief.analyst_summary.top_categories.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {latestDebrief.analyst_summary.top_categories.map((cat) => (
+                      <span key={cat} className="text-[10px] font-bold uppercase tracking-widest text-muted bg-white/[0.04] px-2.5 py-1 rounded-full">
+                        {cat.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-px bg-white/[0.06]" />
+
+              {/* Behaviorist */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-purple-400 text-lg">psychology</span>
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-purple-400">Behavioral Patterns</div>
+                </div>
+                <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.behaviorist_insights.suggestion}</p>
+                {latestDebrief.behaviorist_insights.patterns.length > 0 && (
+                  <div className="space-y-1.5">
+                    {latestDebrief.behaviorist_insights.patterns.map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-muted">
+                        <span className="material-symbols-outlined text-xs mt-0.5 text-purple-400/60">arrow_right</span>
+                        <span className="capitalize">{p.replace(/_/g, " ")}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="h-px bg-white/[0.06]" />
+
+              {/* Mentor */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-lg">target</span>
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-primary">Next Week&apos;s Plan</div>
+                </div>
+                <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.mentor_goals.encouragement}</p>
+                {latestDebrief.mentor_goals.next_week_plan && (
+                  <p className="text-sm text-muted leading-relaxed">{latestDebrief.mentor_goals.next_week_plan}</p>
+                )}
+                <div className="flex items-center gap-4 pt-1">
+                  <div className="flex-1 text-center p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                    <div className="text-lg font-headline font-bold text-secondary">£{latestDebrief.mentor_goals.achieved}</div>
+                    <div className="text-[10px] uppercase tracking-widest text-muted font-bold mt-0.5">Saved</div>
+                  </div>
+                  <div className="flex-1 text-center p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                    <div className="text-lg font-headline font-bold text-primary">£{latestDebrief.mentor_goals.weekly_target}</div>
+                    <div className="text-[10px] uppercase tracking-widest text-muted font-bold mt-0.5">Target</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
