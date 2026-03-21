@@ -196,7 +196,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       cardsAPI.today(),
       gamification.xp(),
       replays.latest(),

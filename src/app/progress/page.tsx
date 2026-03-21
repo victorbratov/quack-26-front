@@ -69,7 +69,7 @@ export default function ProgressPage() {
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       auth.me(),
       goalsAPI.list(),
       ghostSpend.list(),
@@ -183,7 +183,7 @@ export default function ProgressPage() {
 
   const handleLogout = async () => {
     clearAuthToken();
-    await authClient.signOut().catch(() => {});
+    void authClient.signOut().catch(() => undefined);
     router.push("/sign-in");
   };
 
@@ -458,7 +458,7 @@ export default function ProgressPage() {
                 </SpotlightCard>
                 {!selectedModule.completed && (
                   <button
-                    onClick={() => { handleCompleteModule(selectedModule.id); setSelectedModule({ ...selectedModule, completed: true }); }}
+                    onClick={() => { void handleCompleteModule(selectedModule.id); setSelectedModule({ ...selectedModule, completed: true }); }}
                     className="w-full py-3 rounded-full bg-primary text-on-primary font-bold text-sm"
                   >
                     Mark Complete (+{selectedModule.xp_reward} XP)

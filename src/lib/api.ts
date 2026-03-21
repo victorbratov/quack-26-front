@@ -18,7 +18,7 @@ export function clearAuthToken() {
   }
 }
 
-async function getAuthToken(): Promise<string | null> {
+export async function getAuthToken(): Promise<string | null> {
   // Return cached token if still valid (with 60s buffer)
   if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
     return cachedToken.token;
@@ -39,7 +39,7 @@ async function getAuthToken(): Promise<string | null> {
       credentials: "include",
     });
     if (!res.ok) return null;
-    const data = await res.json() as { token?: string };
+    const data = (await res.json()) as { token?: string };
     if (data.token) {
       cachedToken = { token: data.token, expiresAt: Date.now() + 10 * 60 * 1000 };
       return data.token;
@@ -57,7 +57,7 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     ...(options?.headers as Record<string, string>),
   };
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -66,8 +66,8 @@ async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
     credentials: "include",
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((err as { detail?: string }).detail ?? res.statusText);
+    const err = (await res.json().catch(() => ({ detail: res.statusText }))) as { detail?: string };
+    throw new Error(err.detail ?? res.statusText);
   }
   return res.json() as Promise<T>;
 }
@@ -128,7 +128,7 @@ export const decisions = {
   streamEvaluate: async (type: string, title: string, customPrompt?: string) => {
     const token = await getAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (token) headers.Authorization = `Bearer ${token}`;
     return fetch(`${API_BASE}/decisions/evaluate/stream`, {
       method: "POST",
       headers,
@@ -225,10 +225,14 @@ export const squads = {
   create: (name: string) =>
     fetchAPI<Squad>("/squads/", { method: "POST", body: JSON.stringify({ name }) }),
   join: (inviteCode: string) =>
-    fetchAPI<Squad>("/squads/join", { method: "POST", body: JSON.stringify({ invite_code: inviteCode }) }),
+    fetchAPI<Squad>("/squads/join", {
+      method: "POST",
+      body: JSON.stringify({ invite_code: inviteCode }),
+    }),
   get: (id: string) => fetchAPI<SquadDetail>(`/squads/${id}`),
   leave: (id: string) => fetchAPI<{ message: string }>(`/squads/${id}/leave`, { method: "POST" }),
   delete: (id: string) => fetchAPI<{ message: string }>(`/squads/${id}`, { method: "DELETE" }),
+  getMessages: (id: string) => fetchAPI<SquadMessageResponse[]>(`/squads/${id}/messages`),
 };
 
 // ─── Challenges ───
@@ -553,6 +557,15 @@ export type Squad = {
 
 export type SquadDetail = Squad & {
   members: Friend[];
+};
+
+export type SquadMessageResponse = {
+  id: string;
+  squad_id: string;
+  user_id: string;
+  display_name: string;
+  content: string;
+  created_at: string;
 };
 
 export type Challenge = {

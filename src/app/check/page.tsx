@@ -27,8 +27,13 @@ export default function CheckPage() {
   const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
+<<<<<<< HEAD
     void transactions.summary().then(setSpendingSummary).catch(() => {});
     void intents.stats().then(setIntentStats).catch(() => {});
+=======
+    void transactions.summary().then(setSpendingSummary).catch(() => undefined);
+    void intents.stats().then(setIntentStats).catch(() => undefined);
+>>>>>>> c8df09c87802d04a2c8c967716eaf00232a1f681
   }, []);
 
   const handleEvaluate = async () => {

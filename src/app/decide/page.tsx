@@ -80,8 +80,8 @@ export default function DecidePage() {
   const [selectedDecision, setSelectedDecision] = useState<DecisionDetail | null>(null);
 
   useEffect(() => {
-    decisions.templates().then(setTemplates).catch(() => {});
-    decisions.list().then(setPastDecisions).catch(() => {});
+    void decisions.templates().then(setTemplates).catch(() => undefined);
+    void decisions.list().then(setPastDecisions).catch(() => undefined);
   }, []);
 
   const iconMap: Record<string, string> = {
@@ -134,7 +134,7 @@ export default function DecidePage() {
                   setAgents((prev) => [...prev, { ...event.content, status: "LOADING" } as AgentState]);
                   break;
                 case "agent_completed": {
-                  const agentName = String(event.content?.agent ?? "");
+                  const agentName = typeof event.content?.agent === "string" ? event.content.agent : "";
                   const resp = event.content?.response as Record<string, unknown> | undefined;
                   const summary = extractSummary(agentName, resp);
                   setAgents((prev) => {
@@ -142,8 +142,8 @@ export default function DecidePage() {
                     if (!exists) {
                       return [...prev, {
                         agent: agentName,
-                        label: String(event.content?.label ?? agentName),
-                        icon: String(event.content?.icon ?? "psychology"),
+                        label: typeof event.content?.label === "string" ? event.content.label : agentName,
+                        icon: typeof event.content?.icon === "string" ? event.content.icon : "psychology",
                         color: AGENT_COLORS[agentName] ?? "text-muted",
                         status: "COMPLETED" as const,
                         summary,
@@ -372,11 +372,13 @@ export default function DecidePage() {
                 actionSteps={(mentorResponse.action_steps ?? mentorResponse.action_items ?? []).map((step: ActionStep | string | Record<string, unknown>) => {
                   if (typeof step === "string") return { text: step };
                   const s = step as Record<string, unknown>;
-                  const text = String(s.action || s.description || s.step_description || s.task || s.item || (() => {
-                    const vals = Object.values(s).filter(v => typeof v === "string" && (v as string).length > 5);
+                  const rawText = s.action ?? s.description ?? s.step_description ?? s.task ?? s.item ?? (() => {
+                    const vals = Object.values(s).filter(v => typeof v === "string" && v.length > 5);
                     return vals[0] ?? JSON.stringify(s);
-                  })());
-                  const timeframe = String(s.timeframe || s.timeline || s.when || "");
+                  })();
+                  const text = typeof rawText === "string" ? rawText : JSON.stringify(rawText);
+                  const rawTime = s.timeframe ?? s.timeline ?? s.when ?? "";
+                  const timeframe = typeof rawTime === "string" ? rawTime : JSON.stringify(rawTime);
                   return { text, timeframe: timeframe || undefined };
                 })}
               />
