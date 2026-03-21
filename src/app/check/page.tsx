@@ -36,14 +36,25 @@ export default function CheckPage() {
     setLoadingAgents(0);
     setEvaluation(null);
 
+    // Staggered agent loading animation
     const t1 = setTimeout(() => setLoadingAgents(1), 600);
-    const t2 = setTimeout(() => setLoadingAgents(2), 1200);
-    const t3 = setTimeout(() => setLoadingAgents(3), 1800);
+    const t2 = setTimeout(() => setLoadingAgents(2), 1400);
+    const t3 = setTimeout(() => setLoadingAgents(3), 2200);
+    const startTime = Date.now();
+    const MIN_LOADING_MS = 3000; // Show loading for at least 3 seconds
 
     try {
       const result = await intents.evaluate(merchant, Number(amount));
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+
+      // Wait for minimum loading time so the animation plays out
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
       setLoadingAgents(3);
+
+      // Brief pause showing all agents ready before revealing results
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setEvaluation(result);
       setPhase("RESULTS");
     } catch (e) {
