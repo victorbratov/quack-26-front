@@ -26,14 +26,14 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "skint",
-  description: "a tool to avoid being skint",
+  title: "Stride",
+  description: "Financial wellness, reimagined",
   manifest: "/manifest.json",
   themeColor: "#000000",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Your App Name",
+    title: "Stride",
     startupImage: [
       {
         url: "/splash/apple-splash-1170-2532.png",
@@ -68,8 +68,8 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-on-surface min-h-screen">
         <TRPCReactProvider>
-          <div className="relative pt-6">
-            <main className="pb-40">
+          <div className="relative">
+            <main className="page-enter">
               {children}
             </main>
             <BottomNavBar />
