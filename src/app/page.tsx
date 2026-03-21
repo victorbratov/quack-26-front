@@ -480,12 +480,12 @@ export default function Home() {
 
       {/* Debrief Modal */}
       {showDebrief && latestDebrief && (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDebrief(false)} />
 
-          {/* Sheet */}
-          <div className="relative w-full max-w-lg max-h-[85vh] bg-black border-t border-x border-white/[0.1] rounded-t-3xl overflow-y-auto animate-slide-up">
+          {/* Modal */}
+          <div className="relative w-full max-w-lg max-h-[90vh] bg-black border border-white/[0.1] rounded-3xl overflow-y-auto animate-slide-up">
             {/* Handle */}
             <div className="sticky top-0 z-10 bg-black pt-3 pb-2 flex justify-center">
               <div className="w-10 h-1 rounded-full bg-white/20" />
