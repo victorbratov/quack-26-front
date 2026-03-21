@@ -24,8 +24,8 @@ export default function CheckPage() {
   const [loadingAgents, setLoadingAgents] = useState(0);
 
   useEffect(() => {
-    transactions.summary().then(setSpendingSummary).catch(() => {});
-    intents.stats().then(setIntentStats).catch(() => {});
+    void transactions.summary().then(setSpendingSummary).catch(() => undefined);
+    void intents.stats().then(setIntentStats).catch(() => undefined);
   }, []);
 
   const handleEvaluate = async () => {

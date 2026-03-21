@@ -7,10 +7,12 @@ import { SectionHeader } from "~/components/ui/SectionHeader";
 import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedList } from "~/components/ui/AnimatedList";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
-import { social, squads as squadsAPI, challenges as challengesAPI, gamification } from "~/lib/api";
-import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail } from "~/lib/api";
+import { social, squads as squadsAPI, challenges as challengesAPI, gamification, auth } from "~/lib/api";
+import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser } from "~/lib/api";
+import { SquadChat } from "~/components/SquadChat";
 
 type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
+type SquadView = "members" | "chat";
 
 const EVENT_ICONS: Record<string, string> = {
   intent_cancelled: "block",
@@ -35,23 +37,27 @@ export default function SocialPage() {
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeDetail | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<SquadDetail | null>(null);
   const [friendUserId, setFriendUserId] = useState("");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [squadView, setSquadView] = useState<SquadView>("members");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       social.feed(),
       social.friends(),
       squadsAPI.list(),
       challengesAPI.active(),
       challengesAPI.list(),
       gamification.leaderboard(),
-    ]).then(([feedR, friendsR, squadsR, activeChR, allChR, lbR]) => {
+      auth.me(),
+    ]).then(([feedR, friendsR, squadsR, activeChR, allChR, lbR, meR]) => {
       if (feedR.status === "fulfilled") setFeed(feedR.value);
       if (friendsR.status === "fulfilled") setFriends(friendsR.value);
       if (squadsR.status === "fulfilled") setMySquads(squadsR.value);
       if (activeChR.status === "fulfilled") setActiveChallenges(activeChR.value);
       if (allChR.status === "fulfilled") setAllChallenges(allChR.value);
       if (lbR.status === "fulfilled") setLeaderboard(lbR.value);
+      if (meR.status === "fulfilled") setCurrentUser(meR.value);
       setLoading(false);
     });
   }, []);
@@ -130,7 +136,7 @@ export default function SocialPage() {
     else if (date.toDateString() === yesterday.toDateString()) label = "Yesterday";
     else label = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-    if (!acc[label]) acc[label] = [];
+    acc[label] ??= [];
     acc[label]!.push(item);
     return acc;
   }, {});
@@ -278,41 +284,63 @@ export default function SocialPage() {
                 </div>
               </div>
 
-              {/* Invite code */}
-              <SpotlightCard className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Invite Code</div>
-                  <div className="font-mono font-bold text-lg text-primary mt-0.5">{selectedSquad.invite_code}</div>
-                </div>
-                <button
-                  onClick={() => navigator.clipboard?.writeText(selectedSquad.invite_code)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant text-sm text-muted hover:text-on-surface hover:border-outline transition-colors"
-                >
-                  <span className="material-symbols-outlined text-sm">content_copy</span>
-                  Copy
-                </button>
-              </SpotlightCard>
-
-              <Divider />
-
-              {/* Members */}
-              <SectionHeader title="MEMBERS" />
-              <AnimatedList staggerMs={80} className="space-y-2">
-                {selectedSquad.members.map((member, i) => (
-                  <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
-                    <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
-                    <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-sm text-on-surface">{member.display_name}</div>
-                      <div className="text-xs text-muted">{member.total_xp} XP</div>
-                    </div>
-                    <div className="flex items-center gap-1 text-secondary text-sm font-bold">
-                      <span className="material-symbols-outlined text-sm">local_fire_department</span>
-                      {member.current_streak_days}
-                    </div>
-                  </div>
+              {/* View toggle */}
+              <div className="flex p-1 bg-surface-container rounded-2xl border border-outline-variant">
+                {(["members", "chat"] as SquadView[]).map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setSquadView(view)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${
+                      squadView === view ? "bg-surface-container-high text-primary shadow-sm" : "text-muted hover:text-on-surface"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">{view === "members" ? "group" : "forum"}</span>
+                    {view}
+                  </button>
                 ))}
-              </AnimatedList>
+              </div>
+
+              {squadView === "chat" ? (
+                <SquadChat squadId={selectedSquad.id} currentUserId={currentUser?.id} />
+              ) : (
+                <>
+                  {/* Invite code */}
+                  <SpotlightCard className="p-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Invite Code</div>
+                      <div className="font-mono font-bold text-lg text-primary mt-0.5">{selectedSquad.invite_code}</div>
+                    </div>
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(selectedSquad.invite_code)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant text-sm text-muted hover:text-on-surface hover:border-outline transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">content_copy</span>
+                      Copy
+                    </button>
+                  </SpotlightCard>
+
+                  <Divider />
+
+                  {/* Members */}
+                  <SectionHeader title="MEMBERS" />
+                  <AnimatedList staggerMs={80} className="space-y-2">
+                    {selectedSquad.members.map((member, i) => (
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                        <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
+                        <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-on-surface">{member.display_name}</div>
+                          <div className="text-xs text-muted">{member.total_xp} XP</div>
+                        </div>
+                        <div className="flex items-center gap-1 text-secondary text-sm font-bold">
+                          <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                          {member.current_streak_days}
+                        </div>
+                      </div>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
 
               <Divider />
 
@@ -376,7 +404,7 @@ export default function SocialPage() {
                               <p className="text-xs text-muted mt-0.5">{ch.participant_count} participants</p>
                             </div>
                           </div>
-                          <button onClick={(e) => { e.stopPropagation(); handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
+                          <button onClick={(e) => { e.stopPropagation(); void handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
                         </SpotlightCard>
                       ))}
                     </AnimatedList>
