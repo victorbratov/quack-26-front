@@ -1,7 +1,7 @@
 {
-  "name": "Your App Name",
-  "short_name": "App",
-  "description": "Your app description",
+  "name": "skint",
+  "short_name": "skint",
+  "description": "an app that helps you avoid meing skint",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -31,12 +31,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    },
-    {
-      "src": "/icons/icon-384x384.png",
-      "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "any"
     }
   ]
 }
