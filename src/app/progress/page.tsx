@@ -13,16 +13,16 @@ import { authClient } from "~/server/better-auth/client";
 import { AgentReasoningCard } from "~/components/ui/AgentReasoning";
 import {
   auth, goals as goalsAPI, ghostSpend, gamification, benchmarks,
-  learning, projections, transactions, debrief as debriefAPI, clearAuthToken,
+  projections, transactions, debrief as debriefAPI, clearAuthToken,
 } from "~/lib/api";
 import type {
   AuthUser, SavingsGoal, RecurringTransaction, GhostSavingsPotential,
-  XPInfo, Streak, SpendingBenchmark, LearningModule, LearningProgress,
-  ProjectionSummary, CategorySummary, Milestone, WhatIfProjection, LearningModuleDetail,
+  XPInfo, Streak, SpendingBenchmark,
+  ProjectionSummary, CategorySummary, Milestone, WhatIfProjection,
   Debrief,
 } from "~/lib/api";
 
-type Tab = "Goals" | "Insights" | "Ghost Subs" | "Learning" | "Transactions" | "Debrief";
+type Tab = "Goals" | "Insights" | "Ghost Subs" | "Transactions" | "Debrief";
 
 function extractDebriefText(data: Record<string, unknown> | null | undefined): string {
   if (!data) return "";
@@ -48,8 +48,6 @@ export default function ProgressPage() {
   const [xpInfo, setXpInfo] = useState<XPInfo | null>(null);
   const [streaks, setStreaks] = useState<Streak[]>([]);
   const [spendingBenchmarks, setSpendingBenchmarks] = useState<SpendingBenchmark[]>([]);
-  const [modules, setModules] = useState<LearningModule[]>([]);
-  const [learningProg, setLearningProg] = useState<LearningProgress | null>(null);
   const [projSummary, setProjSummary] = useState<ProjectionSummary | null>(null);
   const [spendingSummary, setSpendingSummary] = useState<CategorySummary[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -63,7 +61,6 @@ export default function ProgressPage() {
   const [whatIfAmount, setWhatIfAmount] = useState("");
   const [whatIfResult, setWhatIfResult] = useState<WhatIfProjection | null>(null);
   const [whatIfRecurring, setWhatIfRecurring] = useState(true);
-  const [selectedModule, setSelectedModule] = useState<LearningModuleDetail | null>(null);
   const [debriefList, setDebriefList] = useState<Debrief[]>([]);
   const [selectedDebrief, setSelectedDebrief] = useState<Debrief | null>(null);
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
@@ -77,13 +74,11 @@ export default function ProgressPage() {
       gamification.xp(),
       gamification.streaks(),
       benchmarks.spending(),
-      learning.modules(),
-      learning.progress(),
       projections.summary(),
       transactions.summary(),
       gamification.milestones(),
       debriefAPI.history(),
-    ]).then(([userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, modR, learnProgR, projR, txSumR, milestonesR, debriefHistR]) => {
+    ]).then(([userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, projR, txSumR, milestonesR, debriefHistR]) => {
       if (userR.status === "fulfilled") setUser(userR.value);
       if (goalsR.status === "fulfilled") setGoalsList(goalsR.value);
       if (ghostR.status === "fulfilled") setGhostList(ghostR.value);
@@ -91,8 +86,6 @@ export default function ProgressPage() {
       if (xpR.status === "fulfilled") setXpInfo(xpR.value);
       if (streakR.status === "fulfilled") setStreaks(streakR.value);
       if (benchR.status === "fulfilled") setSpendingBenchmarks(benchR.value);
-      if (modR.status === "fulfilled") setModules(modR.value);
-      if (learnProgR.status === "fulfilled") setLearningProg(learnProgR.value);
       if (projR.status === "fulfilled") setProjSummary(projR.value);
       if (txSumR.status === "fulfilled") setSpendingSummary(txSumR.value);
       if (milestonesR.status === "fulfilled") setMilestones(milestonesR.value);
@@ -152,12 +145,6 @@ export default function ProgressPage() {
     } catch (e) { console.error(e); }
   };
 
-  const handleViewModule = async (id: string) => {
-    try {
-      const detail = await learning.get(id);
-      setSelectedModule(detail);
-    } catch (e) { console.error(e); }
-  };
 
   const handleGenerateDebrief = async () => {
     setGeneratingDebrief(true);
@@ -172,12 +159,6 @@ export default function ProgressPage() {
     }
   };
 
-  const handleCompleteModule = async (id: string) => {
-    try {
-      await learning.complete(id);
-      setModules((prev) => prev.map((m) => m.id === id ? { ...m, completed: true } : m));
-    } catch (e) { console.error(e); }
-  };
 
   const router = useRouter();
 
@@ -188,7 +169,7 @@ export default function ProgressPage() {
   };
 
   const mainStreak = streaks.find((s) => s.streak_type === "daily_savings") ?? streaks[0];
-  const chips: Tab[] = ["Goals", "Insights", "Ghost Subs", "Learning", "Transactions", "Debrief"];
+  const chips: Tab[] = ["Goals", "Insights", "Ghost Subs", "Transactions", "Debrief"];
 
   if (loading) {
     return (
@@ -414,57 +395,6 @@ export default function ProgressPage() {
                   </SpotlightCard>
                 ))}
               </AnimatedList>
-            )}
-          </div>
-        )}
-
-        {/* LEARNING */}
-        {activeTab === "Learning" && (
-          <div className="space-y-4">
-            {learningProg && (
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-bold uppercase tracking-widest text-muted">Modules</span>
-                <span className="text-sm font-bold text-primary">
-                  <AnimatedCounter value={learningProg.completed} />/{learningProg.total}
-                </span>
-              </div>
-            )}
-            <AnimatedList staggerMs={100} className="space-y-4">
-              {modules.map((mod) => (
-                <SpotlightCard key={mod.id} className={`p-5 cursor-pointer ${mod.completed ? "opacity-60" : ""}`} onClick={() => handleViewModule(mod.id)}>
-                  <div className="flex justify-between items-start mb-3">
-                    <span className="material-symbols-outlined text-primary">{mod.completed ? "done_all" : "school"}</span>
-                    <div className="text-xs font-bold uppercase tracking-widest bg-primary/20 px-2 py-1 rounded text-primary">+{mod.xp_reward} XP</div>
-                  </div>
-                  <h3 className="font-headline font-bold text-lg text-on-surface mb-1">{mod.title}</h3>
-                  <p className="text-muted text-xs mb-3">Topic: {mod.topic} &middot; Difficulty: {mod.difficulty}</p>
-                  {!mod.completed && (
-                    <button onClick={() => handleCompleteModule(mod.id)} className="w-full py-2.5 rounded-full border border-primary text-primary font-bold text-sm hover:bg-primary/10">
-                      Complete Module
-                    </button>
-                  )}
-                </SpotlightCard>
-              ))}
-            </AnimatedList>
-            {selectedModule && (
-              <div className="mt-4 space-y-3">
-                <Divider />
-                <div className="flex items-center justify-between">
-                  <h3 className="font-headline font-bold text-lg text-on-surface">{selectedModule.title}</h3>
-                  <button onClick={() => setSelectedModule(null)} className="text-xs font-bold text-muted hover:text-on-surface">Close</button>
-                </div>
-                <SpotlightCard className="p-5">
-                  <div className="prose prose-invert prose-sm max-w-none text-on-surface text-sm leading-relaxed whitespace-pre-wrap">{selectedModule.content}</div>
-                </SpotlightCard>
-                {!selectedModule.completed && (
-                  <button
-                    onClick={() => { handleCompleteModule(selectedModule.id); setSelectedModule({ ...selectedModule, completed: true }); }}
-                    className="w-full py-3 rounded-full bg-primary text-on-primary font-bold text-sm"
-                  >
-                    Mark Complete (+{selectedModule.xp_reward} XP)
-                  </button>
-                )}
-              </div>
             )}
           </div>
         )}

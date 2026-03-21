@@ -125,7 +125,7 @@ export const intents = {
 
 // ─── Decisions ───
 export const decisions = {
-  streamEvaluate: async (type: string, title: string, customPrompt?: string) => {
+  streamEvaluate: async (type: string, title: string, customPrompt?: string, parameters?: Record<string, unknown>) => {
     const token = await getAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -133,7 +133,7 @@ export const decisions = {
       method: "POST",
       headers,
       credentials: "include",
-      body: JSON.stringify({ decision_type: type, title, custom_prompt: customPrompt }),
+      body: JSON.stringify({ decision_type: type, title, custom_prompt: customPrompt, parameters }),
     });
   },
   list: () => fetchAPI<DecisionSummary[]>("/decisions/"),
