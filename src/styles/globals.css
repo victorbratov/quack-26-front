@@ -1,6 +1,88 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-headline: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-label: "Manrope", ui-sans-serif, system-ui, sans-serif;
+
+  /* Dark Theme Colors Inspired by Open */
+  --color-background: #000000;
+  --color-on-background: #ffffff;
+  
+  --color-surface: #0a0a0a;
+  --color-on-surface: #ffffff;
+  --color-surface-container: #141414;
+  --color-surface-container-high: #1f1f1f;
+  
+  /* Warm cream/gold and subtle accents */
+  --color-primary: #e6ddc5; /* Cream */
+  --color-on-primary: #000000;
+  --color-secondary: #c9b183; /* Gold */
+  --color-on-secondary: #000000;
+  
+  /* System / Utility */
+  --color-error: #ff5e5e;
+  --color-on-error: #000000;
+  --color-outline: #333333;
+  --color-outline-variant: #222222;
+
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+  --radius-full: 9999px;
+  --radius-super: 4rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+    font-family: var(--font-body);
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-headline);
+  }
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-panel {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+.lotus-vessel {
+  clip-path: path("M50 0C60 20 90 25 100 50C90 75 60 80 50 100C40 80 10 75 0 50C10 25 40 20 50 0Z");
+}
+
+.bg-breathing {
+  background: radial-gradient(circle at 50% 50%, rgba(81, 97, 68, 0.08) 0%, rgba(250, 250, 245, 0) 70%);
+  animation: breathe 8s ease-in-out infinite alternate;
+}
+
+@keyframes breathe {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.05); }
+}
+
+details > summary {
+  list-style: none;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] summary .expand-icon {
+  transform: rotate(180deg);
 }

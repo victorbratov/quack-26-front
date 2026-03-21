@@ -1,29 +1,61 @@
-# Create T3 App
+# Stride: The Digital Sanctuary
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Stride is a next-generation financial mindfulness ecosystem designed to transition users from financial anxiety to a state of botanical harmony. It utilizes **Biophilic Minimalism** to create a sensory regulator experience, moving away from stressful ledgers toward a restorative digital garden.
 
-## What's next? How do I make an app with this?
+## 🌿 Creative Philosophy
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+Stride is built on the concept of **Biophilic Minimalism**. We reject high-stress UI tropes (sharp edges, alarming reds, rigid grids) in favor of organic forms, high-contrast editorial typography, and tonal layering.
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+### Key Pillars:
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- **Digital Sanctuary:** A "sensory regulator" experience with intentional asymmetry and negative space.
+- **Biophilic Palette:** Colors inspired by botanical greens and oat-milk creams.
+- **No-Line Rule:** Boundaries are defined solely through background shifts, not solid borders.
+- **Editorial Rhythm:** High-contrast typography transitions making financial data feel like a lifestyle magazine.
 
-## Learn More
+## 🛠️ Tech Stack
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+- **Frontend:** [Next.js](https://nextjs.org) (App Router)
+- **Styling:** [Tailwind CSS 4.0](https://tailwindcss.com) with custom `@theme` configuration.
+- **Typography:** Plus Jakarta Sans (Headers) & Manrope (Body).
+- **Architecture:** T3 Stack (TypeScript, tRPC, Drizzle ORM).
+- **PWA Ready:** Designed as a Progressive Web Application for a native "Digital Sanctuary" experience.
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+## 🚀 Getting Started
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+1. **Install Dependencies:**
 
-## How do I deploy this?
+   ```bash
+   npm install --legacy-peer-deps
+   ```
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+2. **Environment Variables:**
+   Copy `.env.example` to `.env` and fill in the required database and auth keys.
+
+3. **Run Development Server:**
+   ```bash
+   npm run dev
+   ```
+
+## 🏗️ Core Screens
+
+- **Community Pulse (`/`):** Real-time financial mindfulness and peer comparisons.
+- **Action Deck (`/actions`):** Micro-decision cards for quick financial wins.
+- **Growth Garden (`/growth`):** Visualized savings goals and long-term security.
+- **Bloom Collective (`/bloom`):** Friendship forest and educational "Wellness Blooms".
+- **AI Council (`/council`):** Strategic analysis for major life decisions.
+- **The Harvest Review (`/harvest`):** Weekly growth visualization with the Lotus Vessel.
+
+## 🎨 Design Tokens
+
+Defined in `src/styles/globals.css`:
+
+- **Surface:** `#fafaf5` (Base)
+- **Primary:** `#516144` (Forest Green)
+- **Secondary:** `#4c6455` (Botanical Green)
+- **Tertiary:** `#884b3b` (Terracotta - used for neutral focus/warnings)
+- **Radius:** Standard `2rem` superellipses for containers.
+
+---
+
+_Created with Mindfulness by Stride Team._
