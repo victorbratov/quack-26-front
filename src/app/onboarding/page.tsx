@@ -113,7 +113,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-on-background flex flex-col px-5 pt-6 pb-24 font-body">
+    <div className="min-h-screen bg-background text-on-background flex flex-col px-5 md:px-8 pt-6 pb-24 font-body">
       {/* Progress */}
       <div className="flex items-center gap-3 mb-8">
         {step > 1 && (
@@ -129,8 +129,8 @@ export default function OnboardingPage() {
         <span className="text-xs text-muted font-medium">{step}/6</span>
       </div>
 
-      <div className="flex-1 flex flex-col max-w-md mx-auto w-full">
-        <h1 className="text-3xl font-extrabold font-headline text-primary mb-8 leading-tight">{STEP_TITLES[step - 1]}</h1>
+      <div className="flex-1 flex flex-col max-w-md md:max-w-lg mx-auto w-full">
+        <h1 className="text-3xl md:text-4xl font-extrabold font-headline text-primary mb-8 leading-tight">{STEP_TITLES[step - 1]}</h1>
 
         {step === 1 && (
           <div className="space-y-6">

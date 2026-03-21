@@ -15,11 +15,11 @@ const navItems = [
 export const BottomNavBar = () => {
   const pathname = usePathname();
 
-  if (pathname.includes("/onboarding")) return null;
+  if (pathname.includes("/onboarding") || pathname.includes("/sign-in")) return null;
 
   return (
     <nav
-      className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-outline-variant bg-black/90 px-2 pb-[env(safe-area-inset-bottom,1.5rem)] pt-3 backdrop-blur-xl"
+      className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-around border-t border-outline-variant bg-black/90 px-2 pb-[env(safe-area-inset-bottom,1.5rem)] pt-3 backdrop-blur-xl md:max-w-3xl md:left-1/2 md:-translate-x-1/2 md:bottom-4 md:rounded-full md:border md:border-white/10 md:shadow-2xl md:shadow-black/50 lg:max-w-4xl"
       aria-label="Main Navigation"
     >
       {navItems.map((item) => {
@@ -32,7 +32,7 @@ export const BottomNavBar = () => {
             href={item.href}
             aria-label={item.label}
             aria-current={isActive ? "page" : undefined}
-            className="flex flex-col items-center justify-center gap-1 px-3 py-1 transition-all duration-200"
+            className="flex flex-col items-center justify-center gap-1 px-3 md:px-5 py-1 transition-all duration-200"
           >
             <span
               className={`material-symbols-outlined text-[22px] transition-colors ${
@@ -47,7 +47,7 @@ export const BottomNavBar = () => {
               {item.icon}
             </span>
             {isActive && (
-              <span className="text-[10px] font-medium tracking-wider text-primary">
+              <span className="text-[10px] md:text-xs font-medium tracking-wider text-primary">
                 {item.label}
               </span>
             )}

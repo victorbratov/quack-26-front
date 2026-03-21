@@ -1,12 +1,68 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+/** Set a token directly (used by demo login) */
+export function setAuthToken(token: string) {
+  cachedToken = { token, expiresAt: Date.now() + 60 * 60 * 1000 }; // 1 hour
+  if (typeof window !== "undefined") {
+    sessionStorage.setItem("stride_demo_token", token);
+  }
+}
+
+/** Clear cached token (used by logout) */
+export function clearAuthToken() {
+  cachedToken = null;
+  if (typeof window !== "undefined") {
+    sessionStorage.removeItem("stride_demo_token");
+  }
+}
+
+async function getAuthToken(): Promise<string | null> {
+  // Return cached token if still valid (with 60s buffer)
+  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
+    return cachedToken.token;
+  }
+
+  // Check sessionStorage for demo token
+  if (typeof window !== "undefined") {
+    const stored = sessionStorage.getItem("stride_demo_token");
+    if (stored) {
+      cachedToken = { token: stored, expiresAt: Date.now() + 60 * 60 * 1000 };
+      return stored;
+    }
+  }
+
+  // Try Better Auth's JWT token endpoint
+  try {
+    const res = await fetch("/api/auth/token", {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { token?: string };
+    if (data.token) {
+      cachedToken = { token: data.token, expiresAt: Date.now() + 10 * 60 * 1000 };
+      return data.token;
+    }
+  } catch {
+    // Fall through — token unavailable
+  }
+  return null;
+}
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = await getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string>),
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
     credentials: "include",
   });
   if (!res.ok) {
@@ -69,16 +125,17 @@ export const intents = {
 
 // ─── Decisions ───
 export const decisions = {
-  streamUrl: (type: string, title: string, customPrompt?: string) => {
-    return `${API_BASE}/decisions/evaluate/stream`;
-  },
-  streamEvaluate: (type: string, title: string, customPrompt?: string) =>
-    fetch(`${API_BASE}/decisions/evaluate/stream`, {
+  streamEvaluate: async (type: string, title: string, customPrompt?: string) => {
+    const token = await getAuthToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(`${API_BASE}/decisions/evaluate/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       credentials: "include",
       body: JSON.stringify({ decision_type: type, title, custom_prompt: customPrompt }),
-    }),
+    });
+  },
   list: () => fetchAPI<DecisionSummary[]>("/decisions/"),
   templates: () => fetchAPI<DecisionTemplate[]>("/decisions/templates"),
   get: (id: string) => fetchAPI<DecisionDetail>(`/decisions/${id}`),

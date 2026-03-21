@@ -172,3 +172,68 @@ details[open] summary .expand-icon {
 .animate-slide-up {
   animation: slide-up 0.5s ease-out both;
 }
+
+/* Shimmer animation for premium buttons */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Responsive container */
+.app-container {
+  width: 100%;
+  max-width: 32rem; /* max-w-lg on mobile */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .app-container {
+    max-width: 48rem; /* md: max-w-3xl */
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    max-width: 64rem; /* lg: max-w-5xl */
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-container {
+    max-width: 80rem; /* xl: max-w-7xl */
+  }
+}
+
+/* Responsive grid for cards that are carousels on mobile */
+.responsive-card-grid {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.responsive-card-grid::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .responsive-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    overflow-x: visible;
+  }
+
+  .responsive-card-grid > * {
+    min-width: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+}

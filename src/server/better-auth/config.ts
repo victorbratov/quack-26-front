@@ -1,13 +1,17 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { dash } from "@better-auth/infra";
+import { jwt } from "better-auth/plugins/jwt";
+import { bearer } from "better-auth/plugins/bearer";
 
 import { env } from "~/env";
 import { db } from "~/server/db";
+import * as schema from "~/server/db/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: "pg", // or "pg" or "mysql"
+    provider: "pg",
+    schema,
   }),
   emailAndPassword: {
     enabled: true,
@@ -29,7 +33,9 @@ export const auth = betterAuth({
         enabled: true,
         updateInterval: 300000,
       }
-    })
+    }),
+    jwt(),
+    bearer(),
   ],
 });
 

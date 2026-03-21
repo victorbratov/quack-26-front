@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { SectionHeader } from "~/components/ui/SectionHeader";
 import { Divider } from "~/components/ui/Divider";
-import { PillButton } from "~/components/ui/PillButton";
-import { CardCarousel } from "~/components/ui/CardCarousel";
+import { SpotlightCard } from "~/components/ui/SpotlightCard";
+import { AnimatedList } from "~/components/ui/AnimatedList";
+import { AgentReasoningCard, PipelineStatus, MentorVerdictCard } from "~/components/ui/AgentReasoning";
 import { decisions } from "~/lib/api";
-import type { DecisionTemplate, DecisionSummary } from "~/lib/api";
+import type { DecisionTemplate, DecisionSummary, DecisionDetail } from "~/lib/api";
 
 type AgentState = {
   agent: string;
@@ -17,10 +18,53 @@ type AgentState = {
   summary?: string;
 };
 
+function extractSummary(agentRole: string, resp: Record<string, unknown> | undefined): string {
+  if (!resp) return "Analysis complete.";
+  if (typeof resp.summary === "string" && resp.summary) return resp.summary;
+  if (typeof resp.behavioral_prediction === "string") return resp.behavioral_prediction;
+  if (typeof resp.worst_case_scenario === "string") return resp.worst_case_scenario;
+  if (typeof resp.reasoning === "string") return resp.reasoning;
+  if (Array.isArray(resp.benefits) && resp.benefits.length > 0) {
+    const b = resp.benefits[0] as Record<string, unknown>;
+    return typeof b.point === "string" ? b.point : "Benefits identified.";
+  }
+  if (Array.isArray(resp.risks) && resp.risks.length > 0) {
+    const r = resp.risks[0] as Record<string, unknown>;
+    return typeof r.point === "string" ? r.point : "Risks identified.";
+  }
+  return "Analysis complete.";
+}
+
+const AGENT_COLORS: Record<string, string> = {
+  analyst: "text-blue-400",
+  advocate: "text-green-400",
+  critic: "text-red-400",
+  behaviorist: "text-purple-400",
+  mentor: "text-amber-400",
+};
+
+const AGENT_BG_COLORS: Record<string, string> = {
+  analyst: "bg-blue-400/10",
+  advocate: "bg-green-400/10",
+  critic: "bg-red-400/10",
+  behaviorist: "bg-purple-400/10",
+  mentor: "bg-amber-400/10",
+};
+
+type ActionStep = {
+  step: number;
+  action: string;
+  timeframe: string;
+};
+
 type MentorResponse = {
+  recommendation: string;
   verdict: string;
   key_number: string;
-  action_steps: string[];
+  reasoning: string;
+  confidence: number;
+  conditions: string[] | null;
+  action_steps: (ActionStep | string)[];
   summary?: string;
   action_items?: string[];
 };
@@ -33,6 +77,7 @@ export default function DecidePage() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [templates, setTemplates] = useState<DecisionTemplate[]>([]);
   const [pastDecisions, setPastDecisions] = useState<DecisionSummary[]>([]);
+  const [selectedDecision, setSelectedDecision] = useState<DecisionDetail | null>(null);
 
   useEffect(() => {
     decisions.templates().then(setTemplates).catch(() => {});
@@ -62,15 +107,19 @@ export default function DecidePage() {
       if (!response.body) return;
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value);
-        const lines = text.split("\n");
+        buffer += decoder.decode(value, { stream: true });
 
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          for (const line of chunk.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
             const raw = line.slice(6).replace(/###NEWLINE###/g, "\n");
             if (!raw.trim()) continue;
             try {
@@ -84,15 +133,30 @@ export default function DecidePage() {
                 case "agent_started":
                   setAgents((prev) => [...prev, { ...event.content, status: "LOADING" } as AgentState]);
                   break;
-                case "agent_completed":
-                  setAgents((prev) =>
-                    prev.map((a) =>
-                      a.agent === event.content?.agent
-                        ? { ...a, status: "COMPLETED", summary: String(event.content?.response) } as AgentState
+                case "agent_completed": {
+                  const agentName = String(event.content?.agent ?? "");
+                  const resp = event.content?.response as Record<string, unknown> | undefined;
+                  const summary = extractSummary(agentName, resp);
+                  setAgents((prev) => {
+                    const exists = prev.some((a) => a.agent === agentName);
+                    if (!exists) {
+                      return [...prev, {
+                        agent: agentName,
+                        label: String(event.content?.label ?? agentName),
+                        icon: String(event.content?.icon ?? "psychology"),
+                        color: AGENT_COLORS[agentName] ?? "text-muted",
+                        status: "COMPLETED" as const,
+                        summary,
+                      }];
+                    }
+                    return prev.map((a) =>
+                      a.agent === agentName
+                        ? { ...a, status: "COMPLETED" as const, summary }
                         : a,
-                    ),
-                  );
+                    );
+                  });
                   break;
+                }
                 case "mentor_started":
                   setStreamState("mentor_started");
                   break;
@@ -114,6 +178,13 @@ export default function DecidePage() {
     }
   };
 
+  const handleViewDecision = async (id: string) => {
+    try {
+      const detail = await decisions.get(id);
+      setSelectedDecision(detail);
+    } catch (e) { console.error(e); }
+  };
+
   const templateCards = templates.length > 0
     ? templates.map((t) => ({ icon: iconMap[t.decision_type] ?? "help", title: t.title, type: t.decision_type, description: t.description }))
     : [
@@ -126,180 +197,204 @@ export default function DecidePage() {
       ];
 
   return (
-    <div className="mx-auto max-w-lg pb-32 min-h-screen bg-background text-on-background font-body relative">
+    <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body relative">
       {phase === "GRID" && (
         <>
-          {/* Hero */}
-          <div className="relative mx-4 overflow-hidden rounded-3xl mt-2">
-            <div className="relative aspect-[4/3] w-full bg-gradient-to-br from-surface-container-high via-surface to-surface-container">
-              <div className="absolute top-1/4 right-1/4 w-48 h-48 rounded-full bg-primary/8 blur-3xl" />
-              <div className="absolute bottom-1/4 left-1/4 w-32 h-32 rounded-full bg-secondary/10 blur-2xl" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-5">
-                <h1 className="font-headline text-3xl font-extrabold text-primary leading-tight">DECISION STUDIO</h1>
+          {!selectedDecision && (
+            <>
+              {/* Header */}
+              <div className="px-5 md:px-8 pt-10 pb-4">
+                <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-primary leading-tight">DECISION STUDIO</h1>
                 <p className="text-sm text-muted mt-1">Your AI financial advisory council</p>
               </div>
-            </div>
-          </div>
 
-          <div className="flex gap-3 px-5 mt-5">
-            <PillButton label="Schedule" variant="outline" />
-            <button className="text-sm text-muted hover:text-primary transition-colors underline underline-offset-4">How it works</button>
-          </div>
-
-          <Divider className="mt-6" />
-
-          {/* EXPERIENCES */}
-          <SectionHeader title="EXPERIENCES" />
-          <CardCarousel>
-            {templateCards.map((dec) => (
-              <button
-                key={dec.type}
-                onClick={() => handleDecisionClick(dec.title, dec.type)}
-                className="min-w-[180px] rounded-2xl border border-outline-variant bg-surface-container overflow-hidden flex-shrink-0 text-left group hover:border-primary transition-colors"
-              >
-                <div className="aspect-[4/3] bg-gradient-to-br from-surface-container-high to-surface flex items-center justify-center">
-                  <span className="material-symbols-outlined text-3xl text-muted group-hover:text-primary transition-colors">{dec.icon}</span>
-                </div>
-                <div className="p-3">
-                  <h4 className="font-bold text-sm text-on-surface leading-tight group-hover:text-primary transition-colors">{dec.title}</h4>
-                  {dec.description && <p className="text-xs text-muted mt-1">{dec.description}</p>}
-                </div>
-              </button>
-            ))}
-          </CardCarousel>
-
-          {/* Past Decisions */}
-          {pastDecisions.length > 0 && (
-            <>
-              <Divider className="mt-6" />
-              <SectionHeader title="PAST DECISIONS" />
-              <div className="px-5 space-y-3">
-                {pastDecisions.slice(0, 5).map((d) => (
-                  <div key={d.id} className="glass-card p-4 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm text-on-surface">{d.title}</div>
-                      <div className="text-xs text-muted">{new Date(d.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <div className={`text-xs font-bold uppercase px-2 py-1 rounded ${d.status === "completed" ? "bg-emerald-400/20 text-emerald-400" : "bg-secondary/20 text-secondary"}`}>
-                      {d.status}
-                    </div>
+              {/* Intro Card */}
+              <div className="px-5 md:px-8">
+                <SpotlightCard className="p-5 flex items-start gap-4">
+                  <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-primary text-xl">psychology</span>
                   </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-on-surface">Big decision? Let your council weigh in.</h3>
+                    <p className="text-xs text-muted mt-1">Pick a scenario below and 3 AI agents will analyse your finances, debate the trade-offs, and deliver a verdict.</p>
+                  </div>
+                </SpotlightCard>
+              </div>
+
+              <Divider className="mt-6" />
+
+              {/* EXPERIENCES — consistent grid */}
+              <SectionHeader title="EXPERIENCES" />
+              <div className="px-5 md:px-8 grid grid-cols-2 gap-3">
+                {templateCards.map((dec) => (
+                  <button
+                    key={dec.type}
+                    onClick={() => handleDecisionClick(dec.title, dec.type)}
+                    className="rounded-2xl border border-outline-variant bg-surface-container overflow-hidden text-left group hover:border-primary transition-colors"
+                  >
+                    <div className="h-24 bg-gradient-to-br from-surface-container-high to-surface flex items-center justify-center">
+                      <span className="material-symbols-outlined text-3xl text-muted group-hover:text-primary transition-colors">{dec.icon}</span>
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-bold text-sm text-on-surface leading-tight group-hover:text-primary transition-colors">{dec.title}</h4>
+                      {dec.description && <p className="text-xs text-muted mt-1 line-clamp-2">{dec.description}</p>}
+                    </div>
+                  </button>
                 ))}
               </div>
+
+              {/* Past Decisions */}
+              {pastDecisions.length > 0 && (
+                <>
+                  <Divider className="mt-6" />
+                  <SectionHeader title="PAST DECISIONS" />
+                  <div className="px-5 md:px-8 space-y-3">
+                    <AnimatedList staggerMs={100}>
+                      {pastDecisions.slice(0, 5).map((d) => (
+                        <SpotlightCard key={d.id} className="p-4 flex items-center justify-between cursor-pointer" onClick={() => handleViewDecision(d.id)}>
+                          <div>
+                            <div className="font-bold text-sm text-on-surface">{d.title}</div>
+                            <div className="text-xs text-muted">{new Date(d.created_at).toLocaleDateString()}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`text-xs font-bold uppercase px-2 py-1 rounded ${d.status === "completed" ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"}`}>
+                              {d.status}
+                            </div>
+                            <span className="material-symbols-outlined text-muted text-base">chevron_right</span>
+                          </div>
+                        </SpotlightCard>
+                      ))}
+                    </AnimatedList>
+                  </div>
+                </>
+              )}
             </>
           )}
 
-          {/* Custom */}
-          <div className="px-5 mt-6">
-            <button className="w-full glass-card p-5 rounded-2xl flex items-center justify-between group hover:border-secondary/50 transition-colors text-left">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
-                  <span className="material-symbols-outlined text-xl text-secondary">edit</span>
+          {selectedDecision && (
+            <div className="px-5 md:px-8 pt-8 pb-20 space-y-6 max-w-2xl mx-auto">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-2xl font-headline font-bold text-on-surface">{selectedDecision.title}</h2>
+                <div className={`text-xs font-bold uppercase px-2 py-1 rounded ${selectedDecision.status === "completed" ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"}`}>
+                  {selectedDecision.status}
                 </div>
-                <h3 className="font-headline font-bold text-base text-on-surface group-hover:text-secondary transition-colors">Ask something custom...</h3>
               </div>
-              <span className="material-symbols-outlined text-muted">arrow_forward</span>
-            </button>
-          </div>
+
+              {selectedDecision.agent_responses?.length > 0 && (
+                <>
+                  <SectionHeader title="COUNCIL RESPONSES" />
+                  <AnimatedList staggerMs={100} className="space-y-3">
+                    {selectedDecision.agent_responses.map((agent, i) => (
+                      <SpotlightCard key={i} className="p-4">
+                        <div className="font-bold text-xs uppercase tracking-widest text-secondary mb-2">{agent.agent_role.replace(/_/g, " ")}</div>
+                        <p className="text-sm text-on-surface">{typeof agent.response === "string" ? agent.response : JSON.stringify(agent.response)}</p>
+                      </SpotlightCard>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
+
+              {selectedDecision.final_recommendation && (
+                <SpotlightCard className="p-6" spotlightColor="rgba(201, 177, 131, 0.2)">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-primary text-on-primary rounded-full flex items-center justify-center">
+                      <span className="material-symbols-outlined text-xl">gavel</span>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-primary">Verdict</div>
+                      <div className="font-headline font-bold text-xl text-on-surface">{(selectedDecision.final_recommendation.verdict ?? selectedDecision.final_recommendation.summary ?? "").replace(/_/g, " ").toUpperCase()}</div>
+                    </div>
+                  </div>
+                  {selectedDecision.final_recommendation.summary && (
+                    <p className="text-sm text-muted mb-4">{selectedDecision.final_recommendation.summary}</p>
+                  )}
+                  {selectedDecision.final_recommendation.action_items?.length > 0 && (
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-widest text-muted mb-2">Action Items</h4>
+                      <ul className="space-y-2">
+                        {selectedDecision.final_recommendation.action_items.map((item: string, idx: number) => (
+                          <li key={idx} className="flex gap-2 text-sm text-on-surface">
+                            <span className="w-5 h-5 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center font-bold text-[10px] shrink-0">{idx + 1}</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </SpotlightCard>
+              )}
+
+              <button onClick={() => setSelectedDecision(null)} className="w-full py-4 border border-outline text-on-surface rounded-full font-bold hover:bg-white/5 transition-colors">Back</button>
+            </div>
+          )}
         </>
       )}
 
       {phase === "STREAMING" && (
-        <div className="px-5 pt-8 pb-20 space-y-6">
-          <div className="text-center mb-6">
-            <h2 className="text-xl font-headline font-bold text-primary flex items-center justify-center gap-2">
-              {(streamState === "pipeline_started" || streamState === "context_building") && (
-                <><span className="material-symbols-outlined animate-spin text-muted">scatter_plot</span>Analyzing profile...</>
-              )}
-              {streamState === "context_ready" && (
-                <><span className="material-symbols-outlined text-emerald-400">check_circle</span>Profile loaded</>
-              )}
-              {agents.length > 0 && streamState !== "mentor_completed" && !isCompleted && (
-                <><span className="material-symbols-outlined animate-pulse text-secondary">forum</span>Council Debating...</>
-              )}
-              {(streamState === "mentor_completed" || isCompleted) && (
-                <><span className="material-symbols-outlined text-primary">gavel</span>Verdict Reached</>
-              )}
-              {streamState === "error" && (
-                <><span className="material-symbols-outlined text-error">error</span>Something went wrong</>
-              )}
-            </h2>
-          </div>
+        <div className="px-5 md:px-8 lg:px-12 pt-6 pb-20 space-y-5 max-w-3xl mx-auto">
+          {/* Pipeline progress bar */}
+          <PipelineStatus
+            stage={streamState}
+            agentCount={agents.length}
+            completedCount={agents.filter((a) => a.status === "COMPLETED").length}
+          />
 
-          <div className="space-y-4">
+          {/* Agent reasoning cards */}
+          <div className="space-y-3">
             {agents.map((agent) => (
-              <div key={agent.agent} className={`glass-card rounded-2xl p-5 transition-all duration-700 ${agent.status === "LOADING" ? "opacity-70" : "opacity-100"}`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${agent.color?.replace("text-", "bg-")}/10`}>
-                    <span className={`material-symbols-outlined ${agent.color} ${agent.status === "LOADING" ? "animate-pulse" : ""}`}>{agent.icon}</span>
-                  </div>
-                  <div>
-                    <div className={`font-bold uppercase tracking-widest text-xs ${agent.color}`}>{agent.label}</div>
-                    <div className="text-xs text-muted">{agent.status === "LOADING" ? "Thinking..." : "Completed"}</div>
-                  </div>
-                </div>
-                {agent.status === "COMPLETED" && (
-                  <div className="text-on-surface font-medium border-l-2 border-outline-variant pl-4 mt-2 py-1">&quot;{agent.summary}&quot;</div>
-                )}
-              </div>
+              <AgentReasoningCard
+                key={agent.agent}
+                label={agent.label}
+                icon={agent.icon}
+                color={AGENT_COLORS[agent.agent] ?? "text-secondary"}
+                status={agent.status}
+                summary={agent.summary}
+              />
             ))}
           </div>
 
+          {/* Mentor synthesizing */}
           {streamState === "mentor_started" && (
-            <div className="pt-6 border-t border-outline-variant flex justify-center">
-              <div className="flex items-center gap-3 text-secondary font-bold font-headline animate-pulse">
-                <span className="material-symbols-outlined animate-spin">sync</span>The Mentor is synthesizing...
-              </div>
-            </div>
+            <AgentReasoningCard
+              label="The Mentor"
+              icon="gavel"
+              color="text-primary"
+              status="LOADING"
+            />
           )}
 
+          {/* Mentor verdict */}
           {mentorResponse && (
-            <div className="mt-6">
-              <div className="glass-card border-primary/30 p-6 rounded-2xl">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg">
-                    <span className="material-symbols-outlined text-2xl">account_balance</span>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-xs uppercase tracking-widest text-primary">The Mentor&apos;s Verdict</h3>
-                    <div className="font-headline font-extrabold text-2xl text-on-surface">{mentorResponse.verdict ?? mentorResponse.summary}</div>
-                  </div>
-                </div>
-
-                {mentorResponse.key_number && (
-                  <div className="text-3xl font-headline font-extrabold text-secondary text-center border-y border-outline-variant py-5 mb-5">
-                    {mentorResponse.key_number}
-                    <span className="text-sm font-body font-medium text-muted block mt-1">Net impact if you proceed</span>
-                  </div>
-                )}
-
-                {(mentorResponse.action_steps ?? mentorResponse.action_items)?.length && (
-                  <div>
-                    <h4 className="font-bold text-xs uppercase tracking-widest text-muted mb-3">Action Steps</h4>
-                    <ul className="space-y-3">
-                      {(mentorResponse.action_steps ?? mentorResponse.action_items ?? []).map((step, idx) => (
-                        <li key={idx} className="flex gap-3 text-sm text-on-surface items-start">
-                          <span className="w-6 h-6 rounded-full bg-surface-container border border-outline-variant flex items-center justify-center font-bold text-xs shrink-0">{idx + 1}</span>
-                          <span className="leading-relaxed mt-0.5">{step}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+            <>
+              <MentorVerdictCard
+                verdict={(mentorResponse.recommendation ?? mentorResponse.verdict ?? mentorResponse.summary ?? "").replace(/_/g, " ").toUpperCase()}
+                keyNumber={mentorResponse.key_number}
+                actionSteps={(mentorResponse.action_steps ?? mentorResponse.action_items ?? []).map((step: ActionStep | string | Record<string, unknown>) => {
+                  if (typeof step === "string") return { text: step };
+                  const s = step as Record<string, unknown>;
+                  const text = String(s.action || s.description || s.step_description || s.task || s.item || (() => {
+                    const vals = Object.values(s).filter(v => typeof v === "string" && (v as string).length > 5);
+                    return vals[0] ?? JSON.stringify(s);
+                  })());
+                  const timeframe = String(s.timeframe || s.timeline || s.when || "");
+                  return { text, timeframe: timeframe || undefined };
+                })}
+              />
+              <div className="mt-5">
+                <button onClick={() => setPhase("GRID")} className="w-full py-4 border border-outline text-on-surface rounded-full font-bold hover:bg-white/5 transition-colors">Close</button>
               </div>
-
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => setPhase("GRID")} className="flex-1 py-4 border border-outline text-on-surface rounded-full font-bold hover:bg-white/5 transition-colors">Close</button>
-                <button className="flex-[2] py-4 bg-primary text-on-primary rounded-full font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
-                  <span className="material-symbols-outlined text-xl">bookmark</span>Save Analysis
-                </button>
-              </div>
-            </div>
+            </>
           )}
 
+          {/* Error state */}
           {streamState === "error" && (
-            <button onClick={() => setPhase("GRID")} className="w-full py-4 border border-outline text-on-surface rounded-full font-bold hover:bg-white/5 mt-6">Back</button>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-error/30 bg-error/5 p-5 text-center">
+                <span className="material-symbols-outlined text-error text-2xl block mb-2">error</span>
+                <p className="text-sm text-error font-medium">Something went wrong. Please try again.</p>
+              </div>
+              <button onClick={() => setPhase("GRID")} className="w-full py-4 border border-outline text-on-surface rounded-full font-bold hover:bg-white/5">Back</button>
+            </div>
           )}
         </div>
       )}

@@ -29,18 +29,10 @@ export const metadata: Metadata = {
   title: "Stride",
   description: "Financial wellness, reimagined",
   manifest: "/manifest.json",
-  themeColor: "#000000",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Stride",
-    startupImage: [
-      {
-        url: "/splash/apple-splash-1170-2532.png",
-        media:
-          "(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)",
-      },
-    ],
   },
 };
 
@@ -50,6 +42,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
