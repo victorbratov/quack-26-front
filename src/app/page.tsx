@@ -1,115 +1,209 @@
 "use client";
 
-import React from "react";
-import Image from "next/image";
+import React, { useState } from "react";
+import Link from "next/link";
+
+type Card = {
+  id: string;
+  type: string;
+  icon: string;
+  title: string;
+  body: string;
+  savings: string;
+  accentClass: string;
+};
+
+const mockCards: Card[] = [
+  {
+    id: "1",
+    type: "ghost_spend",
+    icon: "warning",
+    title: "Ghost Subscription",
+    body: "Headspace: £12.99/month unused for 27 days",
+    savings: "£12.99",
+    accentClass: "text-error border-error/50 bg-error/5"
+  },
+  {
+    id: "2",
+    type: "opportunity_cost",
+    icon: "trending_up",
+    title: "Opportunity Cost",
+    body: "Your coffee habit: £4,152/year → £8,169 invested over 10 years",
+    savings: "£8,169",
+    accentClass: "text-secondary border-secondary/50 bg-secondary/5"
+  },
+  {
+    id: "3",
+    type: "savings_challenge",
+    icon: "savings",
+    title: "Savings Challenge",
+    body: "Move £20 to 'New Laptop'? Safe to swipe — rent is covered.",
+    savings: "£20",
+    accentClass: "text-emerald-400 border-emerald-400/50 bg-emerald-400/5"
+  },
+  {
+    id: "4",
+    type: "peer_comparison",
+    icon: "group",
+    title: "Peer Insight",
+    body: "You spent 40% more on eating out than similar students",
+    savings: "View",
+    accentClass: "text-blue-400 border-blue-400/50 bg-blue-400/5"
+  }
+];
 
 export default function Home() {
+  const [cards, setCards] = useState<Card[]>(mockCards);
+  const [xpAnim, setXpAnim] = useState<{ id: number, text: string } | null>(null);
+  const [xp, setXp] = useState(85);
+  const [streak, setStreak] = useState(7);
+  const [saved, setSaved] = useState(42);
+  const [animIdCounter, setAnimIdCounter] = useState(0);
+
+  const activeCard = cards[0];
+
+  const handleAction = (direction: "left" | "right") => {
+    if (!activeCard) return;
+    
+    // Trigger animation
+    const newId = animIdCounter + 1;
+    setAnimIdCounter(newId);
+    
+    if (direction === "right") {
+      setXpAnim({ id: newId, text: "+5 XP" });
+      setXp(x => x + 5);
+      if (activeCard.savings.startsWith("£")) {
+        const val = parseFloat(activeCard.savings.replace("£", "").replace(",", ""));
+        if (!isNaN(val)) setSaved(s => s + val);
+      }
+    } else {
+      setXpAnim({ id: newId, text: "Dismissed" });
+    }
+
+    setTimeout(() => setXpAnim(null), 1000);
+
+    // Remove card
+    setCards(prev => prev.slice(1));
+  };
+
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+
   return (
-    <div className="mx-auto max-w-2xl px-6 pt-12 space-y-12">
-      {/* AI Sprout Agent Section */}
-      <section className="flex flex-col items-center space-y-8">
-        {/* The Breathing Sprout Agent */}
-        <div className="relative group">
-          <div className="absolute inset-0 bg-secondary/20 rounded-full blur-3xl group-hover:bg-secondary/30 transition-all duration-1000"></div>
-          <div className="relative w-48 h-48 bg-surface-container-lowest rounded-full flex items-center justify-center shadow-2xl border-4 border-white/50">
-            <span 
-              className="material-symbols-outlined text-7xl text-primary animate-pulse" 
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              local_florist
-            </span>
+    <div className="mx-auto max-w-lg px-6 pt-12 pb-32 space-y-10 min-h-screen bg-black text-on-background font-body relative overflow-hidden">
+      
+      {/* Floating XP Animation */}
+      {xpAnim && (
+        <div key={xpAnim.id} className="absolute inset-0 pointer-events-none flex items-center justify-center z-50">
+          <div className="animate-in slide-in-from-bottom-10 fade-in zoom-in duration-500 text-3xl font-bold text-secondary font-headline">
+            {xpAnim.text}
           </div>
-          {/* Mini Pulsing Badge */}
-          <div className="absolute -bottom-2 -right-2 bg-primary px-3 py-1 rounded-full text-white text-[10px] font-bold tracking-widest uppercase shadow-lg">Active</div>
         </div>
+      )}
+
+      {/* Top Banner / Stats */}
+      <section className="space-y-4">
+        <div className="text-secondary text-xs tracking-widest uppercase font-bold">{today}</div>
+        <h1 className="text-4xl font-headline font-bold text-primary">YOUR DAILY MOVES</h1>
         
-        {/* Speech Bubble */}
-        <div className="glass-panel p-8 rounded-lg shadow-[0_20px_60px_rgba(81,97,68,0.08)] relative">
-          {/* Bubble Tail */}
-          <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-white/40 rotate-45"></div>
-          <p className="text-xl md:text-2xl font-headline font-semibold text-center leading-relaxed text-on-surface">
-            Good morning. I’ve synthesized your stats. <span className="text-primary font-extrabold italic">Transportation is up 15%</span> this week. It’s been a strong week. Your Harvest Review is ready.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-primary hover:bg-primary-container text-white px-8 py-4 rounded-full font-bold text-sm shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2">
-              Enter The Harvest Review
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
-            </button>
-            <div className="flex gap-2">
-              <button className="flex-1 bg-secondary-container text-on-secondary-container px-6 py-4 rounded-full font-bold text-xs hover:bg-secondary-fixed transition-colors">
-                Yes, let&apos;s adjust it
-              </button>
-              <button className="flex-1 bg-surface-container text-on-surface-variant px-6 py-4 rounded-full font-bold text-xs hover:bg-surface-variant transition-colors">
-                No, I&apos;ve got it
-              </button>
-            </div>
+        <div className="flex items-center gap-4 text-sm font-semibold text-outline">
+          <div className="flex items-center gap-1 text-on-surface">
+            <span className="material-symbols-outlined text-secondary text-base">local_fire_department</span>
+            {streak}-day streak
           </div>
+          <span>·</span>
+          <div>£{saved.toLocaleString()} saved this week</div>
+          <span>·</span>
+          <div>{xp} XP earned</div>
         </div>
       </section>
 
-      {/* Bento Grid Overview */}
-      <section className="grid grid-cols-2 gap-4">
-        <div className="col-span-2 md:col-span-1 bg-surface-container-lowest p-6 rounded-lg shadow-sm space-y-4">
-          <div className="flex justify-between items-start">
-            <div className="p-2 bg-secondary-fixed rounded-full">
-              <span className="material-symbols-outlined text-secondary">energy_savings_leaf</span>
+      {/* Card Deck */}
+      <section className="relative h-[400px] w-full mt-8">
+        {cards.length === 0 ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center space-y-4 border border-outline-variant rounded-3xl bg-surface-container">
+            <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center">
+              <span className="material-symbols-outlined text-outline text-3xl">done_all</span>
             </div>
-            <span className="text-tertiary font-bold">+2.4k</span>
+            <h3 className="text-xl font-headline font-bold text-on-surface">All caught up!</h3>
+            <p className="text-outline text-sm px-6">You&apos;ve completed your daily moves. Check back tomorrow.</p>
           </div>
-          <div>
-            <h3 className="font-headline font-bold text-lg text-on-surface">Carbon Offset</h3>
-            <p className="text-on-surface-variant text-sm">Equivalent to 4 saplings planted this week.</p>
-          </div>
-        </div>
-
-        <div className="col-span-1 md:col-span-1 bg-primary-container p-6 rounded-lg shadow-sm space-y-4 text-on-primary-container">
-          <div className="flex justify-between items-start">
-            <div className="p-2 bg-white/20 rounded-full">
-              <span className="material-symbols-outlined">wallet</span>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-headline font-bold text-lg">Yield Earned</h3>
-            <p className="text-white/80 text-sm">4.2% APY Growth</p>
-          </div>
-        </div>
-
-        <div className="col-span-1 bg-surface-container-low p-6 rounded-lg flex flex-col justify-between">
-          <h3 className="font-headline font-bold text-on-surface">Community</h3>
-          <div className="flex -space-x-2 mt-4 relative h-8">
-            <div className="w-8 h-8 rounded-full border-2 border-surface relative overflow-hidden">
-               <Image 
-                 alt="Avatar" 
-                 fill
-                 className="object-cover"
-                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuAysK48VKATKh8qSZFag4L43XyQrGaptykte6dASd4aQhUWaEZBdGR0syxbbiojV_bqEedpfc2xcMTuqnWwMJCn4rv1xqQRSufy6BP2CbI0FdqPLUjWs7Cp-ohcDsTIR5LHGxQsGAh67Il8370krh0YZ8iwIHehllVX5iqHQzi25lwMO0ilHDOWAfafo9Mk3glWRoalbqjw0dyZHmriZrbjWseIcxOS2Vw2mOnOrHl8Hsg3E3VF7EOku_xTP2oC3zglLsLbeVhD1ho"
-               />
-            </div>
-            <div className="w-8 h-8 rounded-full border-2 border-surface relative overflow-hidden">
-               <Image 
-                 alt="Avatar" 
-                 fill
-                 className="object-cover"
-                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_Xfa3rY2HAtAjXanltK3yPZQxHB8k_sjY9rLg8lgXeMP9BxzlZXIoBSJVZvW8p5ynLhjvg_lXjumUPSYj2vgAPYPUIREgkR7X2RNy7JQtkRkfft7dr6fa__L8gUZ4rOARPzjqV0W7hnuKmYzQe7efroOJ7nOSk3WumZxlVOcxuR0yoQIDk02wJYVPVE4qs3hr7MkaJps1KWbJciH-X2XYXGMStUGgSlq_OQbLxQW0oLKe1b1gccrG_O3jLei0nyrAFJN5QbcEFKM"
-               />
-            </div>
-            <div className="w-8 h-8 rounded-full bg-outline-variant flex items-center justify-center text-[10px] font-bold border-2 border-surface">+12</div>
-          </div>
-        </div>
-
-        <div className="col-span-2 bg-white/40 backdrop-blur-md p-8 rounded-lg flex items-center justify-between shadow-sm border border-white/20">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Active Quest</p>
-            <h4 className="text-xl font-headline font-extrabold text-emerald-900">Zero-Emission Commute</h4>
-          </div>
-          <div className="w-16 h-16 rounded-full border-4 border-primary/20 flex items-center justify-center relative">
-            <svg className="absolute inset-0 w-full h-full -rotate-90">
-              <circle className="text-primary" cx="32" cy="32" fill="none" r="28" stroke="currentColor" strokeDasharray="175" strokeDashoffset="44" strokeWidth="4"></circle>
-            </svg>
-            <span className="text-xs font-bold">75%</span>
-          </div>
-        </div>
+        ) : (
+          cards.slice(0, 3).map((card, i) => {
+            const isTop = i === 0;
+            return (
+              <div
+                key={card.id}
+                className="absolute inset-0 w-full transition-all duration-300 ease-out"
+                style={{
+                  zIndex: 10 - i,
+                  transform: `translateY(${i * 15}px) scale(${1 - i * 0.05})`,
+                  opacity: 1 - i * 0.2
+                }}
+              >
+                <div className={`h-full border rounded-3xl p-8 flex flex-col justify-between bg-surface shadow-2xl ${card.accentClass}`}>
+                  <div className="space-y-4">
+                    <span className="material-symbols-outlined text-4xl">{card.icon}</span>
+                    <h3 className="text-2xl font-headline font-bold text-on-surface leading-tight">{card.title}</h3>
+                    <p className="text-lg text-outline font-medium">{card.body}</p>
+                  </div>
+                  
+                  {isTop && (
+                    <div className="flex gap-4 mt-8">
+                      <button 
+                        onClick={() => handleAction("left")}
+                        className="flex-1 py-4 rounded-full border border-outline hover:bg-surface-container transition-colors font-bold text-on-surface flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-xl">close</span>
+                        Dismiss
+                      </button>
+                      <button 
+                        onClick={() => handleAction("right")}
+                        className="flex-1 py-4 rounded-full bg-primary text-black font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(230,221,197,0.3)]"
+                      >
+                        <span className="material-symbols-outlined text-xl">check</span>
+                        Accept
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
       </section>
+
+      {/* Your Week & CTA */}
+      <section className="space-y-6 pt-12 animate-in fade-in duration-700 delay-300 fill-mode-both">
+        <h3 className="text-xs uppercase tracking-widest font-bold text-outline">Your Week</h3>
+        
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-surface border border-outline-variant p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+            <span className="text-2xl font-headline font-bold text-primary">14</span>
+            <span className="text-[10px] uppercase text-outline font-bold tracking-wider mt-1">Cards Swiped</span>
+          </div>
+          <div className="bg-surface border border-outline-variant p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+            <span className="text-2xl font-headline font-bold text-secondary">9</span>
+            <span className="text-[10px] uppercase text-outline font-bold tracking-wider mt-1">Accepted</span>
+          </div>
+          <div className="bg-surface border border-outline-variant p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+            <span className="text-2xl font-headline font-bold text-emerald-400">£47</span>
+            <span className="text-[10px] uppercase text-outline font-bold tracking-wider mt-1">Saved</span>
+          </div>
+        </div>
+
+        <Link href="/check" className="block">
+          <div className="w-full mt-4 bg-gradient-to-r from-surface-container to-surface border border-outline-variant p-6 rounded-3xl flex items-center justify-between group hover:border-secondary/50 transition-colors">
+            <div className="space-y-1">
+              <h4 className="font-headline font-bold text-lg text-on-surface group-hover:text-secondary transition-colors">About to spend something?</h4>
+              <p className="text-outline text-sm">Check it first with your AI council</p>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-black transition-all">
+              <span className="material-symbols-outlined">arrow_forward</span>
+            </div>
+          </div>
+        </Link>
+      </section>
+      
     </div>
   );
 }

@@ -21,7 +21,7 @@ export default function CarbonPage() {
         </h1>
         <p className="text-on-surface-variant max-w-lg mx-auto leading-relaxed">
           Every action you take in the physical world is synthesized into digital growth. 
-          You've offset enough carbon to power 4 homes for a month.
+          You&apos;ve offset enough carbon to power 4 homes for a month.
         </p>
       </section>
 

@@ -5,53 +5,26 @@
   --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
   --font-label: "Manrope", ui-sans-serif, system-ui, sans-serif;
 
-  --color-error-container: #ffdad6;
-  --color-on-tertiary: #ffffff;
-  --color-on-primary: #ffffff;
-  --color-outline-variant: #c5c8bb;
-  --color-on-secondary-container: #506859;
-  --color-on-primary-container: #f9ffed;
-  --color-primary-fixed: #d7e8c4;
-  --color-inverse-on-surface: #f1f1ec;
-  --color-secondary: #4c6455;
-  --color-tertiary-container: #a56351;
-  --color-on-error-container: #93000a;
-  --color-on-secondary-fixed-variant: #344c3e;
-  --color-on-background: #1a1c19;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-high: #e8e8e3;
-  --color-background: #fafaf5;
-  --color-tertiary-fixed: #ffdbd1;
-  --color-inverse-primary: #bbcca9;
-  --color-on-primary-fixed-variant: #3c4b30;
-  --color-on-secondary: #ffffff;
-  --color-surface: #fafaf5;
-  --color-surface-container-highest: #e3e3de;
-  --color-primary-fixed-dim: #bbcca9;
-  --color-surface-container-low: #f4f4ef;
-  --color-on-surface-variant: #45483e;
-  --color-on-tertiary-container: #fffbff;
-  --color-surface-container: #eeeee9;
-  --color-on-error: #ffffff;
-  --color-on-secondary-fixed: #082014;
-  --color-secondary-fixed-dim: #b2cdbb;
-  --color-tertiary-fixed-dim: #ffb5a1;
-  --color-secondary-container: #cbe6d4;
-  --color-primary: #516144;
-  --color-surface-variant: #e3e3de;
-  --color-surface-dim: #dadad5;
-  --color-secondary-fixed: #cee9d6;
-  --color-outline: #75786d;
-  --color-error: #ba1a1a;
-  --color-tertiary: #884b3b;
-  --color-surface-bright: #fafaf5;
-  --color-inverse-surface: #2f312e;
-  --color-on-surface: #1a1c19;
-  --color-on-primary-fixed: #121f08;
-  --color-on-tertiary-fixed-variant: #6f3728;
-  --color-primary-container: #697a5b;
-  --color-surface-tint: #536346;
-  --color-on-tertiary-fixed: #380d03;
+  /* Dark Theme Colors Inspired by Open */
+  --color-background: #000000;
+  --color-on-background: #ffffff;
+  
+  --color-surface: #0a0a0a;
+  --color-on-surface: #ffffff;
+  --color-surface-container: #141414;
+  --color-surface-container-high: #1f1f1f;
+  
+  /* Warm cream/gold and subtle accents */
+  --color-primary: #e6ddc5; /* Cream */
+  --color-on-primary: #000000;
+  --color-secondary: #c9b183; /* Gold */
+  --color-on-secondary: #000000;
+  
+  /* System / Utility */
+  --color-error: #ff5e5e;
+  --color-on-error: #000000;
+  --color-outline: #333333;
+  --color-outline-variant: #222222;
 
   --radius-lg: 2rem;
   --radius-xl: 3rem;

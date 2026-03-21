@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
+
 
 export default function BloomPage() {
   const [isFlipped, setIsFlipped] = useState(false);
