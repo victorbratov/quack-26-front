@@ -1,7 +1,7 @@
 import "~/styles/globals.css";
 
 import { type Metadata, type Viewport } from "next";
-import { Plus_Jakarta_Sans, Manrope } from "next/font/google";
+import { Plus_Jakarta_Sans, Manrope, Playfair_Display } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 
@@ -16,6 +16,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
+});
+
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
   weight: ["400", "500", "600", "700"],
 });
 
@@ -52,7 +58,7 @@ export default function RootLayout({
 
 
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${manrope.variable}`}>
+    <html lang="en" className={`${plusJakartaSans.variable} ${manrope.variable} ${playfairDisplay.variable} dark`}>
       <head>
         <link
           rel="stylesheet"
@@ -60,7 +66,7 @@ export default function RootLayout({
         />
         <link rel="apple-touch-icon" href="/icons/manifest-icon-192.maskable.png" />
       </head>
-      <body className="font-body antialiased bg-[#fafaf5] text-on-surface min-h-screen">
+      <body className="font-body antialiased bg-background text-on-surface min-h-screen">
         <TRPCReactProvider>
           <div className="relative pt-6">
             <main className="pb-40">
