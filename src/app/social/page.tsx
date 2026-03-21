@@ -390,7 +390,7 @@ export default function SocialPage() {
                   <SectionHeader title="MEMBERS" />
                   <AnimatedList staggerMs={80} className="space-y-2">
                     {selectedSquad.members.map((member, i) => (
-                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
                         <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
                         <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
                         <div className="flex-1 min-w-0">
@@ -515,7 +515,7 @@ export default function SocialPage() {
 
               <AnimatedList staggerMs={60} className="space-y-2">
                 {selectedChallenge.participants.map((p) => (
-                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
+                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
                     <GradientAvatar initials={p.display_name[0] ?? "?"} size={38} />
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
@@ -536,7 +536,7 @@ export default function SocialPage() {
               {leaderboard && leaderboard.entries.length > 0 && (
                 <>
                   <SectionHeader title="LEADERBOARD" />
-                  <div className="rounded-full border border-outline-variant overflow-hidden bg-black">
+                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black">
                     {leaderboard.entries.map((entry, i) => (
                       <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
@@ -567,7 +567,7 @@ export default function SocialPage() {
                   <SectionHeader title="YOUR FRIENDS" />
                   <AnimatedList staggerMs={60} className="space-y-2">
                     {friends.map((f) => (
-                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-full hover:bg-white/[0.02] transition-colors">
+                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
                         <GradientAvatar initials={f.display_name[0] ?? "?"} size={40} />
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm text-on-surface">{f.display_name}</div>

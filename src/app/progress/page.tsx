@@ -236,7 +236,7 @@ export default function ProgressPage() {
       {projSummary && (
         <>
           <Divider className="mt-4" />
-          <SectionHeader title="WEALTH PROJECTION" />
+          <SectionHeader title="WEALTH PROJECTION" seeAllHref="/progress/wealth" />
           <div className="grid grid-cols-3 gap-3 px-5 md:px-8">
             {[
               { label: "1 Year", value: projSummary.projected_1yr },
@@ -277,35 +277,34 @@ export default function ProgressPage() {
                 <SpotlightCard key={goal.id} className="p-5">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="font-bold text-on-surface">{goal.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <div className="font-bold text-lg text-secondary">
-                          £<AnimatedCounter value={goal.current_amount} />
-                        </div>
-                        <div className="text-xs text-muted">of £{goal.target_amount.toFixed(0)}</div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-secondary">
+                        £<AnimatedCounter value={goal.current_amount} />
                       </div>
-                      <button
-                        onClick={() => handleDeleteGoal(goal.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-full border border-outline-variant text-muted hover:text-error hover:border-error/50 transition-colors"
-                        title="Delete goal"
-                      >
-                        <span className="material-symbols-outlined text-[18px]">delete</span>
-                      </button>
+                      <div className="text-xs text-muted">of £{goal.target_amount.toFixed(0)}</div>
                     </div>
                   </div>
                   <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden mb-2">
                     <div className="h-full bg-secondary rounded-full transition-all duration-1000" style={{ width: `${pct}%` }} />
                   </div>
                   <div className="flex justify-between items-center mt-2">
-                    {goal.target_date && <p className="text-xs text-muted">Target: {goal.target_date}</p>}
-                    {!goal.target_date && <span />}
+                    <div className="flex items-center gap-2">
+                      {goal.target_date && <p className="text-xs text-muted">Target: {goal.target_date}</p>}
+                      <button
+                        onClick={() => handleDeleteGoal(goal.id)}
+                        className="text-muted hover:text-error transition-colors"
+                        title="Delete goal"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">delete</span>
+                      </button>
+                    </div>
                     {!isDepositing && (
                       <button
                         onClick={() => { setDepositGoalId(goal.id); setDepositAmount(""); }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 transition-colors"
+                        className="w-9 h-9 flex items-center justify-center rounded-full border border-primary text-primary hover:bg-primary/10 transition-colors"
+                        title="Add funds"
                       >
-                        <span className="material-symbols-outlined text-[16px]">add</span>
-                        Deposit
+                        <span className="material-symbols-outlined text-[18px]">add</span>
                       </button>
                     )}
                   </div>

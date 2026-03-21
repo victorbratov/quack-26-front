@@ -27,7 +27,7 @@ export function ShimmerButton({
         className="absolute inset-0 -translate-x-full animate-[shimmer_2.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-[var(--shimmer-color)] to-transparent"
         style={{ "--shimmer-color": shimmerColor } as React.CSSProperties}
       />
-      <span className="relative z-10">{children}</span>
+      <div className="relative z-10">{children}</div>
     </button>
   );
 }

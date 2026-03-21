@@ -11,6 +11,21 @@ import { cards as cardsAPI, gamification, debrief as debriefAPI, learning } from
 import type { Card, XPInfo, Debrief, LearningModule, LearningModuleDetail } from "~/lib/api";
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+
+function extractDebriefText(data: Record<string, unknown> | null | undefined): string {
+  if (!data) return "";
+  const candidates = [
+    data.summary, data.insight, data.suggestion, data.encouragement,
+    data.nudge_recommendation, data.behavioral_prediction, data.reasoning,
+    data.next_week_plan, data.analysis,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 10) return c;
+  }
+  const allStrings = Object.values(data).filter((v): v is string => typeof v === "string" && v.length > 20);
+  if (allStrings.length > 0) return allStrings[0]!;
+  return JSON.stringify(data).slice(0, 300);
+}
 const SWIPE_THRESHOLD = 80;
 
 function SwipeCard({
@@ -180,6 +195,8 @@ export default function Home() {
   const [animId, setAnimId] = useState(0);
   const [showDebrief, setShowDebrief] = useState(false);
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
+  const [expandNumbers, setExpandNumbers] = useState(false);
+  const [expandPatterns, setExpandPatterns] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [dayCards, setDayCards] = useState<Card[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
@@ -356,7 +373,7 @@ export default function Home() {
               </span>
             </div>
             <button
-              onClick={() => setShowDebrief(true)}
+              onClick={() => { setShowDebrief(true); setExpandNumbers(false); setExpandPatterns(false); }}
               className="relative w-9 h-9 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-primary hover:border-primary/50 transition-colors"
               title="Weekly Debrief"
             >
@@ -509,14 +526,9 @@ export default function Home() {
       {/* CTA */}
       <section className="px-5 md:px-8 mt-6">
         <Link href="/check" className="block">
-          <ShimmerButton className="w-full p-6 flex flex-col items-center justify-center text-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
-              <span className="material-symbols-outlined">arrow_forward</span>
-            </div>
-            <div className="space-y-1">
-              <h4 className="font-headline font-bold text-base md:text-lg text-on-surface">About to spend something?</h4>
-              <p className="text-muted text-sm">Check it first with your AI council</p>
-            </div>
+          <ShimmerButton className="w-full py-4 px-6 text-center">
+            <h4 className="font-headline font-bold text-base md:text-lg text-on-surface">About to spend something?</h4>
+            <p className="text-muted text-sm mt-0.5">Check it first with your AI council</p>
           </ShimmerButton>
         </Link>
       </section>
@@ -575,42 +587,36 @@ export default function Home() {
         </div>
       )}
 
-      {/* Debrief Modal */}
+      {/* Debrief Modal — full screen sheet */}
       {showDebrief && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowDebrief(false)} />
-          <div className="relative w-full max-w-lg max-h-[80vh] bg-black border border-white/[0.1] rounded-3xl overflow-hidden animate-slide-up flex flex-col">
+        <div className="fixed inset-0 z-[200] bg-background flex flex-col">
             {/* Header */}
-            <div className="p-5 pb-3 border-b border-white/[0.05] shrink-0">
-              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+            <div className="px-5 pt-10 pb-3 border-b border-white/[0.05] shrink-0">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-headline font-bold text-xl text-on-surface">Weekly Debrief</h2>
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">Weekly Debrief</h2>
                   {latestDebrief && (
-                    <p className="text-xs text-muted mt-0.5">
+                    <p className="text-xs text-muted mt-1">
                       {latestDebrief.week_start} — {latestDebrief.week_end}
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowDebrief(false)}
-                  className="text-muted hover:text-on-surface p-1"
-                >
-                  <span className="material-symbols-outlined text-xl">close</span>
+                <button onClick={() => setShowDebrief(false)} className="w-9 h-9 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-on-surface transition-colors">
+                  <span className="material-symbols-outlined text-lg">close</span>
                 </button>
               </div>
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 px-5 py-5">
               {!latestDebrief && !generatingDebrief && (
-                <div className="p-8 flex flex-col items-center justify-center text-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-primary text-2xl">summarize</span>
+                <div className="flex flex-col items-center justify-center text-center gap-4 py-6">
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-xl">summarize</span>
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-on-surface">No debrief yet</h3>
-                    <p className="text-xs text-muted mt-1">Generate a weekly summary of your spending, habits, and goals</p>
+                    <p className="text-xs text-muted mt-1">Get a weekly summary of your spending and habits</p>
                   </div>
                   <button
                     onClick={handleGenerateDebrief}
@@ -623,86 +629,69 @@ export default function Home() {
               )}
 
               {generatingDebrief && (
-                <div className="p-8 flex flex-col items-center justify-center text-center gap-4">
-                  <span className="material-symbols-outlined text-3xl text-primary animate-spin">progress_activity</span>
+                <div className="flex flex-col items-center justify-center text-center gap-3 py-8">
+                  <span className="material-symbols-outlined text-2xl text-primary animate-spin">progress_activity</span>
                   <p className="text-sm text-muted">Analysing your week...</p>
                 </div>
               )}
 
               {latestDebrief && !generatingDebrief && (
-                <div className="px-5 py-4 space-y-5">
-                  {/* Analyst */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-blue-400 text-lg">analytics</span>
+                <div className="space-y-4">
+                  {/* The Numbers — truncated */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-blue-400 text-sm">analytics</span>
                       </div>
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-blue-400">The Numbers</div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-blue-400">The Numbers</span>
                     </div>
-                    <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.analyst_summary.insight}</p>
-                    {latestDebrief.analyst_summary.top_categories?.length > 0 && (
-                      <div className="flex gap-2 flex-wrap">
-                        {latestDebrief.analyst_summary.top_categories.map((cat) => (
-                          <span key={cat} className="text-[10px] font-bold uppercase tracking-widest text-muted bg-white/[0.04] px-2.5 py-1 rounded-full">
-                            {cat.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
+                    <p className={`text-sm text-on-surface/80 leading-relaxed ${expandNumbers ? "" : "line-clamp-2"}`}>
+                      {extractDebriefText(latestDebrief.analyst_summary)}
+                    </p>
+                    {extractDebriefText(latestDebrief.analyst_summary).length > 100 && (
+                      <button onClick={() => setExpandNumbers(!expandNumbers)} className="text-xs font-bold text-primary mt-1">
+                        {expandNumbers ? "Show less" : "Show more"}
+                      </button>
                     )}
                   </div>
 
                   <div className="h-px bg-white/[0.06]" />
 
-                  {/* Behaviorist */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-purple-500/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-purple-400 text-lg">psychology</span>
+                  {/* Behavioral Patterns — truncated */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 rounded-full bg-purple-500/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-purple-400 text-sm">psychology</span>
                       </div>
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-purple-400">Behavioral Patterns</div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-purple-400">Behavioral Patterns</span>
                     </div>
-                    <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.behaviorist_insights.suggestion}</p>
-                    {latestDebrief.behaviorist_insights.patterns?.length > 0 && (
-                      <div className="space-y-1.5">
-                        {latestDebrief.behaviorist_insights.patterns.map((p, i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs text-muted">
-                            <span className="material-symbols-outlined text-xs mt-0.5 text-purple-400/60">arrow_right</span>
-                            <span className="capitalize">{p.replace(/_/g, " ")}</span>
-                          </div>
-                        ))}
-                      </div>
+                    <p className={`text-sm text-on-surface/80 leading-relaxed ${expandPatterns ? "" : "line-clamp-2"}`}>
+                      {extractDebriefText(latestDebrief.behaviorist_insights)}
+                    </p>
+                    {extractDebriefText(latestDebrief.behaviorist_insights).length > 100 && (
+                      <button onClick={() => setExpandPatterns(!expandPatterns)} className="text-xs font-bold text-primary mt-1">
+                        {expandPatterns ? "Show less" : "Show more"}
+                      </button>
                     )}
                   </div>
 
                   <div className="h-px bg-white/[0.06]" />
 
-                  {/* Mentor */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-primary text-lg">target</span>
+                  {/* Next Week's Plan — always full */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary text-sm">target</span>
                       </div>
-                      <div className="text-[11px] font-bold uppercase tracking-widest text-primary">Next Week&apos;s Plan</div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-primary">Next Week&apos;s Plan</span>
                     </div>
-                    <p className="text-sm text-on-surface/90 leading-relaxed">{latestDebrief.mentor_goals.encouragement}</p>
-                    {latestDebrief.mentor_goals.next_week_plan && (
-                      <p className="text-sm text-muted leading-relaxed">{latestDebrief.mentor_goals.next_week_plan}</p>
-                    )}
-                    <div className="flex items-center gap-4 pt-1">
-                      <div className="flex-1 text-center p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <div className="text-lg font-headline font-bold text-secondary">£{latestDebrief.mentor_goals.achieved}</div>
-                        <div className="text-[10px] uppercase tracking-widest text-muted font-bold mt-0.5">Saved</div>
-                      </div>
-                      <div className="flex-1 text-center p-3 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                        <div className="text-lg font-headline font-bold text-primary">£{latestDebrief.mentor_goals.weekly_target}</div>
-                        <div className="text-[10px] uppercase tracking-widest text-muted font-bold mt-0.5">Target</div>
-                      </div>
-                    </div>
+                    <p className="text-sm text-on-surface/90 leading-relaxed">
+                      {extractDebriefText(latestDebrief.mentor_goals)}
+                    </p>
                   </div>
                 </div>
               )}
             </div>
-          </div>
         </div>
       )}
     </>

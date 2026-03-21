@@ -33,7 +33,7 @@ export function SpotlightCard({
       onMouseEnter={() => setOpacity(1)}
       onMouseLeave={() => setOpacity(0)}
       className={cn(
-        "relative overflow-hidden rounded-full border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm",
+        "relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-sm",
         className
       )}
     >
