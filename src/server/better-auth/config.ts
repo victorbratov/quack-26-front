@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { dash } from "@better-auth/infra";
 
 import { env } from "~/env";
 import { db } from "~/server/db";
@@ -15,9 +16,21 @@ export const auth = betterAuth({
     github: {
       clientId: env.BETTER_AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.BETTER_AUTH_GITHUB_CLIENT_SECRET,
-      redirectURI: "http://localhost:3000/api/auth/callback/github",
+      redirectURI: "https://epifania-unripe-petrifiedly.ngrok-free.dev/api/auth/callback/github",
     },
   },
+  account: {
+		skipStateCookieCheck: true
+	},
+  plugins: [
+    dash({
+      apiKey: env.BETTER_AUTH_SECRET,
+      activityTracking: {
+        enabled: true,
+        updateInterval: 300000,
+      }
+    })
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;
