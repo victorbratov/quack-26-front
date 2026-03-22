@@ -392,7 +392,6 @@ export default function DecidePage() {
           { icon: "schedule", title: "Should I pick up extra shifts?", type: "extra_shifts", description: "" },
           { icon: "account_balance", title: "Should I switch banks?", type: "switch_banks", description: "" },
         ]),
-    { icon: "edit_note", title: "Ask something custom...", type: "custom", description: "Type your own financial question" },
   ];
 
   return (
@@ -402,9 +401,18 @@ export default function DecidePage() {
           {!selectedDecision && (
             <>
               {/* Header */}
-              <div className="px-5 md:px-8 pt-10 pb-4">
-                <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-primary leading-tight">DECISION STUDIO</h1>
-                <p className="text-sm text-muted mt-1">Your AI financial advisory council</p>
+              <div className="px-5 md:px-8 pt-10 pb-4 flex items-start justify-between">
+                <div>
+                  <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-primary leading-tight">DECISION STUDIO</h1>
+                  <p className="text-sm text-muted mt-1">Your AI financial advisory council</p>
+                </div>
+                <button
+                  onClick={() => handleTemplateClick("Ask something custom...", "custom")}
+                  className="w-11 h-11 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-primary hover:border-primary/50 transition-colors shrink-0 mt-1"
+                  title="Ask a custom question"
+                >
+                  <span className="material-symbols-outlined text-xl">chat_bubble</span>
+                </button>
               </div>
 
               {/* Intro Card */}

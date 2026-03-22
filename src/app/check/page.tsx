@@ -163,25 +163,6 @@ export default function CheckPage() {
             </button>
           </div>
 
-          {/* How It Works */}
-          <Divider className="mt-6" />
-          <SectionHeader title="HOW IT WORKS" />
-          <div className="px-5 md:px-8 grid grid-cols-3 gap-3">
-            {[
-              { icon: "edit_note", label: "Enter spend", desc: "Tell us where and how much" },
-              { icon: "forum", label: "AI council", desc: "3 agents analyse it" },
-              { icon: "gavel", label: "Get verdict", desc: "Informed decision" },
-            ].map((step, i) => (
-              <SpotlightCard key={i} className="p-4 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                  <span className="material-symbols-outlined text-primary text-lg">{step.icon}</span>
-                </div>
-                <div className="text-xs font-bold text-on-surface">{step.label}</div>
-                <div className="text-[10px] text-muted mt-0.5">{step.desc}</div>
-              </SpotlightCard>
-            ))}
-          </div>
-
           {/* Spending Summary */}
           {spendingSummary.length > 0 && (
             <>

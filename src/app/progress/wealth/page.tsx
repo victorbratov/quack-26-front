@@ -62,7 +62,6 @@ export default function WealthTimelinePage() {
       <div className="px-5 md:px-8 pt-10 pb-2">
         <Link href="/progress" className="flex items-center gap-1 text-sm text-muted hover:text-on-surface transition-colors mb-4">
           <span className="material-symbols-outlined text-lg">arrow_back</span>
-          Profile
         </Link>
         <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-primary">WEALTH PROJECTION</h1>
         {wealthPath && (
@@ -107,9 +106,6 @@ export default function WealthTimelinePage() {
               {timelinePoints.map((point, idx) => {
                 const isFirst = idx === 0;
                 const isLast = idx === timelinePoints.length - 1;
-                const growthPct = isFirst
-                  ? 0
-                  : ((point.balance - timelinePoints[0]!.balance) / Math.max(timelinePoints[0]!.balance, 1)) * 100;
 
                 return (
                   <div key={point.month} className="relative flex gap-4">
@@ -143,12 +139,12 @@ export default function WealthTimelinePage() {
                             </div>
                             <div className="text-xs text-muted mt-0.5">Projected balance</div>
                           </div>
-                          {!isFirst && (
+                          {!isFirst && point.interest_earned > 0 && (
                             <div className="text-right">
-                              <div className="text-sm font-bold text-primary">
-                                +{growthPct.toFixed(0)}%
+                              <div className="text-sm font-bold text-secondary">
+                                +£<AnimatedCounter value={point.interest_earned} />
                               </div>
-                              <div className="text-[10px] text-muted">growth</div>
+                              <div className="text-[10px] text-muted">interest</div>
                             </div>
                           )}
                         </div>

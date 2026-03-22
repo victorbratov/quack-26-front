@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GradientAvatar } from "~/components/ui/GradientAvatar";
 import { SectionHeader } from "~/components/ui/SectionHeader";
@@ -236,20 +237,21 @@ export default function ProgressPage() {
       {projSummary && (
         <>
           <Divider className="mt-4" />
-          <SectionHeader title="WEALTH PROJECTION" seeAllHref="/progress/wealth" />
-          <div className="grid grid-cols-3 gap-3 px-5 md:px-8">
-            {[
-              { label: "1 Year", value: projSummary.projected_1yr },
-              { label: "5 Years", value: projSummary.projected_5yr },
-              { label: "10 Years", value: projSummary.projected_10yr },
-            ].map((p) => (
-              <SpotlightCard key={p.label} className="p-3 md:p-4 text-center">
-                <div className="text-lg md:text-xl font-headline font-bold text-primary">
-                  £<AnimatedCounter value={p.value} />
+          <div className="px-5 md:px-8 mt-3">
+            <Link href="/progress/wealth">
+              <SpotlightCard className="p-5 flex items-center gap-4">
+                <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-primary text-xl">savings</span>
                 </div>
-                <div className="text-[10px] md:text-xs uppercase text-muted font-bold tracking-wider mt-1">{p.label}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted">Wealth Projection</div>
+                  <div className="text-sm text-on-surface mt-0.5">
+                    Saving £<AnimatedCounter value={projSummary.monthly_savings_rate} />/mo — see your timeline
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-muted text-lg">chevron_right</span>
               </SpotlightCard>
-            ))}
+            </Link>
           </div>
         </>
       )}

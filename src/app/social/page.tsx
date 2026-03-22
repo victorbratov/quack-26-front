@@ -39,6 +39,7 @@ export default function SocialPage() {
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeDetail | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<SquadDetail | null>(null);
   const [friendUserId, setFriendUserId] = useState("");
+  const [showAddFriend, setShowAddFriend] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [squadView, setSquadView] = useState<SquadView>("members");
   const [loading, setLoading] = useState(true);
@@ -564,7 +565,16 @@ export default function SocialPage() {
               {friends.length > 0 && (
                 <>
                   <Divider />
-                  <SectionHeader title="YOUR FRIENDS" />
+                  <div className="flex items-center justify-between px-5 py-3 pr-3">
+                    <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Your Friends</h2>
+                    <button
+                      onClick={() => setShowAddFriend(true)}
+                      className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-primary hover:border-primary/50 transition-colors"
+                      title="Add friend"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">person_add</span>
+                    </button>
+                  </div>
                   <AnimatedList staggerMs={60} className="space-y-2">
                     {friends.map((f) => (
                       <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
@@ -588,30 +598,47 @@ export default function SocialPage() {
                     <span className="material-symbols-outlined text-muted text-2xl">person_add</span>
                   </div>
                   <p className="text-muted text-sm">Add friends to see the leaderboard!</p>
+                  <button onClick={() => setShowAddFriend(true)} className="mt-3 px-5 py-2 rounded-full border border-primary text-primary text-sm font-bold hover:bg-primary/10">
+                    Add a friend
+                  </button>
                 </div>
               )}
-
-              <Divider />
-              <SectionHeader title="ADD FRIEND" />
-              <div className="flex gap-2">
-                <input
-                  value={friendUserId}
-                  onChange={(e) => setFriendUserId(e.target.value)}
-                  type="text"
-                  placeholder="Enter user ID"
-                  className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
-                />
-                <button
-                  onClick={handleSendFriendRequest}
-                  disabled={!friendUserId.trim()}
-                  className="w-28 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
-                >
-                  Add
-                </button>
-              </div>
             </div>
           )}
         </section>
+      )}
+
+      {/* Add Friend Modal */}
+      {showAddFriend && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowAddFriend(false); setFriendUserId(""); }} />
+          <div className="relative w-full max-w-sm bg-black border border-white/[0.1] rounded-3xl p-6 space-y-5 animate-slide-up">
+            <div className="flex items-center justify-between">
+              <h3 className="font-headline font-bold text-lg text-on-surface">Add Friend</h3>
+              <button
+                onClick={() => { setShowAddFriend(false); setFriendUserId(""); }}
+                className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-on-surface transition-colors"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+            <input
+              value={friendUserId}
+              onChange={(e) => setFriendUserId(e.target.value)}
+              type="text"
+              placeholder="Enter user ID"
+              autoFocus
+              className="w-full bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+            />
+            <button
+              onClick={() => { handleSendFriendRequest(); setShowAddFriend(false); }}
+              disabled={!friendUserId.trim()}
+              className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
+            >
+              Send Request
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

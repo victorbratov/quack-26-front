@@ -28,6 +28,42 @@ function extractDebriefText(data: Record<string, unknown> | null | undefined): s
 }
 const SWIPE_THRESHOLD = 80;
 
+function getCtaLabel(card: Card): string {
+  const detail = card.detail_json ?? {};
+  const payload = card.action_payload ?? {};
+  switch (card.action_type) {
+    case "move_savings": {
+      const amt = payload.amount as number | undefined;
+      return amt ? `Save £${amt}` : "Save now";
+    }
+    case "cancel_sub": {
+      const merchant = (payload.merchant ?? detail.merchant) as string | undefined;
+      return merchant ? `Cancel ${merchant}` : "Cancel sub";
+    }
+    case "join_challenge":
+      return "Join challenge";
+    case "learn":
+      return "Start lesson";
+    default:
+      return "Got it";
+  }
+}
+
+function getImpactLine(card: Card): string | null {
+  const d = card.detail_json ?? {};
+  if (typeof d.annual_savings === "number" && d.annual_savings > 0)
+    return `That's £${Math.round(d.annual_savings as number)} saved per year`;
+  if (typeof d.projected_10yr === "number" && (d.projected_10yr as number) > 0)
+    return `Worth £${Math.round(d.projected_10yr as number).toLocaleString()} over 10 years`;
+  if (typeof d.annual_cost === "number" && (d.annual_cost as number) > 0)
+    return `You spend £${Math.round(d.annual_cost as number).toLocaleString()} a year on this`;
+  if (typeof d.annual_hike === "number" && (d.annual_hike as number) > 0)
+    return `Price went up £${(d.annual_hike as number).toFixed(2)}/year`;
+  if (typeof d.pct_above === "number" && (d.pct_above as number) > 0)
+    return `${Math.round(d.pct_above as number)}% above your peer average`;
+  return null;
+}
+
 function SwipeCard({
   card,
   isTop,
@@ -143,7 +179,7 @@ function SwipeCard({
             ? "border-primary text-primary"
             : "border-error text-error"
         }`} style={{ opacity: swipeProgress }}>
-          {swipeDirection === "right" ? "Accept" : "Dismiss"}
+          {swipeDirection === "right" ? getCtaLabel(card) : "Dismiss"}
         </div>
       )}
 
@@ -167,6 +203,12 @@ function SwipeCard({
               <span className="text-sm text-muted ml-2">potential savings</span>
             </div>
           )}
+          {(() => {
+            const impact = getImpactLine(card);
+            return impact ? (
+              <p className="text-sm text-secondary/80 italic">{impact}</p>
+            ) : null;
+          })()}
         </div>
 
         {/* Bottom: action buttons */}
@@ -175,8 +217,8 @@ function SwipeCard({
             <button onClick={() => onSwipe("left")} className="flex-1 py-3.5 md:py-4 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-base text-on-surface flex items-center justify-center gap-2">
               <span className="material-symbols-outlined text-xl">close</span>Dismiss
             </button>
-            <button onClick={() => onSwipe("right")} className="flex-1 py-3.5 md:py-4 rounded-full bg-primary text-on-primary font-bold text-base flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(230,221,197,0.2)]">
-              <span className="material-symbols-outlined text-xl">check</span>Accept
+            <button onClick={() => onSwipe("right")} className="flex-1 py-3.5 md:py-4 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(230,221,197,0.2)] whitespace-nowrap overflow-hidden px-4">
+              <span className="material-symbols-outlined text-lg shrink-0">check</span><span className="truncate">{getCtaLabel(card)}</span>
             </button>
           </div>
         )}
@@ -274,6 +316,12 @@ export default function Home() {
     const newId = animId + 1;
     setAnimId(newId);
 
+    // Micro-learning: open the module instead of just dismissing
+    const isMicroLearning = activeCard.card_type === "micro_learning" && direction === "right";
+    const moduleId = isMicroLearning
+      ? String(activeCard.detail_json?.module_id ?? activeCard.action_payload?.module_id ?? "")
+      : "";
+
     try {
       await cardsAPI.swipe(activeCard.id, direction);
       if (direction === "right") {
@@ -288,6 +336,11 @@ export default function Home() {
 
     setTimeout(() => setXpAnim(null), 1000);
     setCardDeck((prev) => prev.slice(1));
+
+    // Open module after removing card from deck
+    if (isMicroLearning && moduleId) {
+      handleViewModule(moduleId);
+    }
   };
 
   const handleGenerateDebrief = async () => {
