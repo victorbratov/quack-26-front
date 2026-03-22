@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import { SectionHeader } from "~/components/ui/SectionHeader";
 import { Divider } from "~/components/ui/Divider";
@@ -449,7 +450,12 @@ export default function DecidePage() {
                     <div className="h-28 relative overflow-hidden">
                       {dec.image ? (
                         <>
-                          <img src={dec.image} alt={dec.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                          <Image 
+                            src={dec.image} 
+                            alt={dec.title} 
+                            fill 
+                            className="object-cover transition-transform duration-500 group-hover:scale-110" 
+                          />
                           <div className="absolute inset-0 bg-gradient-to-t from-surface-container via-surface-container/60 to-transparent" />
                         </>
                       ) : (

@@ -195,6 +195,13 @@ export const projections = {
   wealthCompare: (years = 20) => fetchAPI<WealthCompareResponse>(`/projections/wealth-compare?years=${years}`),
 };
 
+export type ReactionUpdateResponse = {
+  message?: string;
+  reactions?: FeedReaction[];
+  data?: { reactions?: FeedReaction[] };
+  items?: FeedReaction[];
+};
+
 // ─── Social ───
 export const social = {
   friends: () => fetchAPI<Friend[]>("/social/friends"),
@@ -211,6 +218,8 @@ export const social = {
     fetchAPI<{ message: string }>(`/social/friends/request/${requestId}/accept`, { method: "POST" }),
   rejectRequest: (requestId: string) =>
     fetchAPI<{ message: string }>(`/social/friends/request/${requestId}/reject`, { method: "POST" }),
+  toggleReaction: (itemId: string, emoji: string) =>
+    fetchAPI<ReactionUpdateResponse | FeedReaction[]>(`/social/feed/${itemId}/react?emoji=${encodeURIComponent(emoji)}`, { method: "POST" }),
   unfriend: (userId: string) =>
     fetchAPI<{ message: string }>(`/social/friends/${userId}`, { method: "DELETE" }),
 };
@@ -551,6 +560,12 @@ export type FriendRequest = {
   display_name?: string;
 };
 
+export type FeedReaction = {
+  feed_item_id: string;
+  user_id: string;
+  emoji: string;
+};
+
 export type FeedItem = {
   id: string;
   user_id: string;
@@ -558,6 +573,7 @@ export type FeedItem = {
   event_type: string;
   message: string;
   detail_json: Record<string, unknown>;
+  reactions: FeedReaction[];
   visibility: string;
   created_at: string;
 };

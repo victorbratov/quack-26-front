@@ -59,10 +59,10 @@ export function useNotificationIsland() {
 function isIOSDevice(): boolean {
   if (typeof navigator === "undefined") return false
   const ua = navigator.userAgent
-  const isIOS = /iPhone|iPad|iPod/.test(ua) && !(/Macintosh/.test(ua) && !("ontouchend" in document))
+  const isIOS = /iPhone|iPad|iPod/.test(ua) && !(ua.includes("Macintosh") && !("ontouchend" in document))
   const isStandalone = "standalone" in navigator || window.matchMedia("(display-mode: standalone)").matches
   // Only show on actual iOS devices, ideally in PWA mode
-  return isIOS && ("ontouchend" in document) && (isStandalone || /iPhone/.test(ua))
+  return isIOS && ("ontouchend" in document) && (isStandalone || ua.includes("iPhone"))
 }
 
 export function NotificationIslandProvider({ children }: { children: React.ReactNode }) {

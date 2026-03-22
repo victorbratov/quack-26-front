@@ -41,7 +41,6 @@ export default function WealthTimelinePage() {
 
   const scenario = data?.scenarios.find((s) => s.key === activeScenario);
   const maxMonth = selectedYears * 12;
-  const path = (scenario?.path ?? []).filter((p) => p.month <= maxMonth);
 
   // Dynamic milestones based on selected time horizon
   const activeMilestones = MILESTONES.filter((m) => m.month <= maxMonth);

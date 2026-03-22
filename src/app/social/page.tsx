@@ -8,7 +8,7 @@ import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedList } from "~/components/ui/AnimatedList";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { social, squads as squadsAPI, challenges as challengesAPI, gamification, auth } from "~/lib/api";
-import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser, FriendRequest } from "~/lib/api";
+import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser, FriendRequest, FeedReaction } from "~/lib/api";
 import { SquadChat } from "~/components/SquadChat";
 
 type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
@@ -50,6 +50,8 @@ export default function SocialPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [squadView, setSquadView] = useState<SquadView>("members");
   const [loading, setLoading] = useState(true);
+  // Independent state for optimistic updates: itemId -> emoji -> { active: boolean, count: number }
+  const [optimisticReactions, setOptimisticReactions] = useState<Record<string, Record<string, { active: boolean, count: number }>>>({});
 
   useEffect(() => {
     void Promise.allSettled([
@@ -61,13 +63,30 @@ export default function SocialPage() {
       gamification.leaderboard(),
       auth.me(),
     ]).then(([feedR, friendsR, squadsR, activeChR, allChR, lbR, meR]) => {
-      if (feedR.status === "fulfilled") setFeed(feedR.value);
+      const activeUser = meR.status === "fulfilled" ? meR.value : null;
+      if (meR.status === "fulfilled") setCurrentUser(activeUser);
+
+      if (feedR.status === "fulfilled") {
+        setFeed(feedR.value);
+        
+        // Initialize the independent reaction states
+        const initialMap: Record<string, Record<string, { active: boolean, count: number }>> = {};
+        feedR.value.forEach(item => {
+          initialMap[item.id] = {};
+          ["🔥", "🎉", "❤️"].forEach(emoji => {
+            const reactions = item.reactions ?? [];
+            const count = reactions.filter(r => r.emoji === emoji).length;
+            const active = activeUser ? reactions.some(r => r.emoji === emoji && String(r.user_id) === String(activeUser.id)) : false;
+            initialMap[item.id]![emoji] = { active, count };
+          });
+        });
+        setOptimisticReactions(initialMap);
+      }
       if (friendsR.status === "fulfilled") setFriends(friendsR.value);
       if (squadsR.status === "fulfilled") setMySquads(squadsR.value);
       if (activeChR.status === "fulfilled") setActiveChallenges(activeChR.value);
       if (allChR.status === "fulfilled") setAllChallenges(allChR.value);
       if (lbR.status === "fulfilled") setLeaderboard(lbR.value);
-      if (meR.status === "fulfilled") setCurrentUser(meR.value);
       setLoading(false);
     });
   }, []);
@@ -138,6 +157,43 @@ export default function SocialPage() {
     } catch (e) {
       console.error("Failed to send friend request:", e);
       // Optional: you could set a local error state here to show a toast/message to the user
+    }
+  };
+
+  const handleToggleReaction = async (itemId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    // 1. Snapshot current state for potential revert
+    const prevState = optimisticReactions[itemId]?.[emoji] ?? { active: false, count: 0 };
+    
+    // 2. Immediate Optimistic Update (Track BOTH state and counter yourself)
+    const nextActive = !prevState.active;
+    const nextCount = Math.max(0, prevState.count + (nextActive ? 1 : -1));
+
+    setOptimisticReactions(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] ?? {}),
+        [emoji]: { active: nextActive, count: nextCount }
+      }
+    }));
+
+    try {
+      // 3. Send request but DO NOT override local state with server response
+      // This prevents the "reset" flash for both the icon and the counter.
+      await social.toggleReaction(itemId, emoji);
+      
+      // Success: local state is already correct.
+    } catch (e) {
+      console.error("Reaction failed:", e);
+      // 4. Revert only this specific emoji on failure
+      setOptimisticReactions(prev => ({
+        ...prev,
+        [itemId]: {
+          ...(prev[itemId] ?? {}),
+          [emoji]: prevState
+        }
+      }));
     }
   };
 
@@ -297,13 +353,35 @@ export default function SocialPage() {
                                       item.message.replace(item.display_name ?? "", "").trim()
                                     )}
                                   </p>
-                                  <div className="flex items-center gap-2 mt-1">
+                                  <div className="flex items-center gap-3 mt-2">
                                     <p className="text-[11px] text-muted-foreground">
                                       {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                                     </p>
                                     {isVaulted && (
                                       <span className="text-[9px] font-bold uppercase tracking-tighter bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">Vaulted</span>
                                     )}
+
+                                    {/* Reactions Bar */}
+                                    <div className="flex items-center gap-1.5 ml-auto">
+                                      {["🔥", "🎉", "❤️"].map((emoji) => {
+                                        const state = optimisticReactions[item.id]?.[emoji] ?? { active: false, count: 0 };
+                                        
+                                        return (
+                                          <button
+                                            key={emoji}
+                                            onClick={() => void handleToggleReaction(item.id, emoji)}
+                                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold transition-all active:scale-90 ${
+                                              state.active 
+                                                ? "bg-primary/20 border-primary/40 text-primary shadow-[0_0_10px_rgba(230,221,197,0.1)]" 
+                                                : "bg-white/[0.03] border-white/[0.05] text-muted-foreground hover:bg-white/[0.08] hover:border-white/[0.1]"
+                                            }`}
+                                          >
+                                            <span>{emoji}</span>
+                                            {state.count > 0 && <span>{state.count}</span>}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 </div>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isVaulted ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"}`}>

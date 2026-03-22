@@ -144,7 +144,7 @@ const DynamicIslandProvider: React.FC<DynamicIslandProviderProps> = ({
       dispatch({ type: "ANIMATION_END" })
     }
     if (state.animationQueue.length > 0) {
-      processQueue()
+      void processQueue()
     }
   }, [state.animationQueue])
 
