@@ -15,13 +15,13 @@ import { authClient } from "~/server/better-auth/client";
 import { AgentReasoningCard } from "~/components/ui/AgentReasoning";
 import {
   auth, goals as goalsAPI, ghostSpend, gamification, benchmarks,
-  projections, transactions, debrief as debriefAPI, clearAuthToken,
+  projections, transactions, debrief as debriefAPI, ingestion, clearAuthToken,
 } from "~/lib/api";
 import type {
   AuthUser, SavingsGoal, RecurringTransaction, GhostSavingsPotential,
   XPInfo, Streak, SpendingBenchmark,
   ProjectionSummary, CategorySummary, Milestone,
-  Debrief,
+  Debrief, IngestionResponse,
 } from "~/lib/api";
 
 type Tab = "Goals" | "Insights" | "Ghost Subs" | "Transactions" | "Debrief";
@@ -69,20 +69,27 @@ export default function ProgressPage() {
   const [selectedDebrief, setSelectedDebrief] = useState<Debrief | null>(null);
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
 
-  useEffect(() => {
-    void Promise.allSettled([
-      auth.me(),
-      goalsAPI.list(),
-      ghostSpend.list(),
-      ghostSpend.savingsPotential(),
-      gamification.xp(),
-      gamification.streaks(),
-      benchmarks.spending(),
-      projections.summary(),
-      transactions.summary(),
-      gamification.milestones(),
-      debriefAPI.history(),
-    ]).then(([userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, projR, txSumR, milestonesR, debriefHistR]) => {
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<IngestionResponse | null>(null);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const [userR, goalsR, ghostR, ghostSavR, xpR, streakR, benchR, projR, txSumR, milestonesR, debriefHistR] = await Promise.allSettled([
+        auth.me(),
+        goalsAPI.list(),
+        ghostSpend.list(),
+        ghostSpend.savingsPotential(),
+        gamification.xp(),
+        gamification.streaks(),
+        benchmarks.spending(),
+        projections.summary(),
+        transactions.summary(),
+        gamification.milestones(),
+        debriefAPI.history(),
+      ]);
+
       if (userR.status === "fulfilled") setUser(userR.value);
       if (goalsR.status === "fulfilled") setGoalsList(goalsR.value);
       if (ghostR.status === "fulfilled") setGhostList(ghostR.value);
@@ -94,9 +101,16 @@ export default function ProgressPage() {
       if (txSumR.status === "fulfilled") setSpendingSummary(txSumR.value);
       if (milestonesR.status === "fulfilled") setMilestones(milestonesR.value);
       if (debriefHistR.status === "fulfilled") setDebriefList(debriefHistR.value);
+    } catch (e) {
+      console.error("Failed to refresh data:", e);
+    } finally {
       setLoading(false);
-    });
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshData();
+  }, [refreshData]);
 
   const handleToggleInsight = useCallback(async (b: SpendingBenchmark) => {
     if (expandedCategory === b.category) {
@@ -178,6 +192,27 @@ export default function ProgressPage() {
     } catch (e) {
       console.error(e);
       setGeneratingDebrief(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setIsUploading(true);
+    setUploadError(null);
+    setUploadResult(null);
+    try {
+      const response = await ingestion.upload(Array.from(files));
+      if (response.success) {
+        setUploadResult(response);
+        await refreshData();
+      } else {
+        setUploadError(response.message || "Failed to process document.");
+      }
+    } catch (e) {
+      console.error(e);
+      setUploadError(e instanceof Error ? e.message : "An error occurred during upload.");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -607,6 +642,14 @@ export default function ProgressPage() {
         {activeTab === "Transactions" && (() => {
           const grandTotal = spendingSummary.reduce((s, c) => s + c.total, 0);
           return (
+            <div className="space-y-4">
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="w-full py-3 rounded-xl border border-dashed border-outline-variant text-sm font-bold text-muted hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg">document_scanner</span>
+                Add Statement
+              </button>
             <AnimatedList staggerMs={80} className="space-y-4">
               {spendingSummary.length === 0 ? (
                 <p className="text-muted text-center py-10">No transactions yet</p>
@@ -672,11 +715,13 @@ export default function ProgressPage() {
                       </AnimatePresence>
                     </SpotlightCard>
                   );
-                })
-              )}
-            </AnimatedList>
-          );
-        })()}
+                  })
+                  )}
+                  </AnimatedList>
+                  </div>
+                  );
+                  })()}
+
       </section>
     </div>
 
@@ -726,6 +771,115 @@ export default function ProgressPage() {
                 <span className="material-symbols-outlined text-base">flag</span>
                 Create Goal
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Statement Modal */}
+      {showUploadModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }} onClick={() => !isUploading && setShowUploadModal(false)} />
+          <div className="w-full max-w-sm bg-black border border-white/[0.1] rounded-3xl overflow-hidden animate-slide-up" style={{ position: "relative" }}>
+            <div className="p-5 pb-3">
+              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline font-bold text-lg text-on-surface">
+                  {uploadResult ? "Analysis Complete" : "Add Statement"}
+                </h2>
+                <button onClick={() => !isUploading && (setShowUploadModal(false), setUploadResult(null), setUploadError(null))} className="text-muted hover:text-on-surface p-1">
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+            </div>
+            <div className="px-5 pb-5 space-y-4">
+              {!uploadResult && <p className="text-sm text-muted">Upload a photo of your bank statement or receipt to automatically sync transactions.</p>}
+              
+              {uploadError && (
+                <div className="p-3 rounded-xl bg-error/10 border border-error/20 text-error text-xs">
+                  {uploadError}
+                </div>
+              )}
+
+              {isUploading ? (
+                <div className="py-8 flex flex-col items-center justify-center gap-4">
+                  <span className="material-symbols-outlined text-4xl text-primary animate-spin">progress_activity</span>
+                  <div className="text-center">
+                    <p className="font-bold text-on-surface">Processing document...</p>
+                    <p className="text-xs text-muted mt-1">This may take several seconds</p>
+                  </div>
+                </div>
+              ) : uploadResult ? (
+                <div className="space-y-4 animate-slide-up">
+                  <div className="flex flex-col items-center justify-center py-4 gap-2">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-2">
+                      <span className="material-symbols-outlined text-3xl text-primary">check_circle</span>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-headline font-bold text-primary">
+                        £<AnimatedCounter value={uploadResult.new_balance} />
+                      </div>
+                      <div className="text-xs uppercase tracking-widest text-muted font-bold">New Balance</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-surface-container border border-white/[0.05] text-center">
+                      <div className="text-xl font-headline font-bold text-on-surface">{uploadResult.added_transactions_count}</div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted font-bold mt-1">Transactions</div>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-surface-container border border-white/[0.05] text-center">
+                      <div className="text-xl font-headline font-bold text-on-surface">Success</div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted font-bold mt-1">Status</div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
+                    <div className="flex gap-2 items-start">
+                      <span className="material-symbols-outlined text-primary text-lg shrink-0">auto_awesome</span>
+                      <p className="text-xs text-on-surface/80 leading-relaxed italic">&quot;{uploadResult.message}&quot;</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => { setShowUploadModal(false); setUploadResult(null); }}
+                    className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2"
+                  >
+                    Great, thanks!
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "image/*";
+                      input.capture = "environment";
+                      input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files);
+                      input.click();
+                    }}
+                    className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-surface-container border border-outline-variant hover:border-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-2xl text-primary">photo_camera</span>
+                    <span className="text-xs font-bold">Camera</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "image/*";
+                      input.multiple = true;
+                      input.onchange = (e) => handleFileUpload((e.target as HTMLInputElement).files);
+                      input.click();
+                    }}
+                    className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-surface-container border border-outline-variant hover:border-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-2xl text-secondary">photo_library</span>
+                    <span className="text-xs font-bold">Gallery</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

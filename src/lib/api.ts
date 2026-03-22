@@ -289,6 +289,34 @@ export const debrief = {
   history: () => fetchAPI<Debrief[]>("/debrief/history"),
 };
 
+// ─── Ingestion ───
+export const ingestion = {
+  upload: async (files: File[]) => {
+    const token = await getAuthToken();
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/ingestion/upload`, {
+      method: "POST",
+      body: formData,
+      headers,
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({ detail: res.statusText }))) as { detail?: string };
+      throw new Error(err.detail ?? res.statusText);
+    }
+
+    return res.json() as Promise<IngestionResponse>;
+  },
+};
+
 // ─── Replays ───
 export const replays = {
   latest: () => fetchAPI<WeeklyReplay>("/replays/latest"),
@@ -296,6 +324,12 @@ export const replays = {
 };
 
 // ─── Types ───
+export type IngestionResponse = {
+  success: boolean;
+  added_transactions_count: number;
+  new_balance: number;
+  message: string;
+};
 export type AuthUser = {
   id: string;
   clerk_id: string;
