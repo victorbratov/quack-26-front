@@ -1,8 +1,10 @@
 {
   "name": "skint",
   "short_name": "skint",
-  "description": "an app that helps you avoid meing skint",
+  "description": "an app that helps you avoid being skint",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#000000",

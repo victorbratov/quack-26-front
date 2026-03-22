@@ -27,13 +27,13 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Stride",
-  description: "Financial wellness, reimagined",
+  title: "skint",
+  description: "An app that helps you avoid being skint",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Stride",
+    title: "skint",
     startupImage: [
       {
         url: "/icons/apple-splash-1170-2532.png",
