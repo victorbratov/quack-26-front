@@ -12,7 +12,7 @@ export default function SignInPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,23 +43,26 @@ export default function SignInPage() {
     }
   };
 
-  const handleDemoLogin = async () => {
+  const handleDemoLogin = async (userId: string) => {
     setError("");
-    setDemoLoading(true);
+    setDemoLoading(userId);
 
     try {
-      const res = await fetch("/api/demo-token", { method: "POST" });
+      const res = await fetch("/api/demo-token", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      });
       if (!res.ok) {
         setError("Failed to get demo token");
-        setDemoLoading(false);
+        setDemoLoading(null);
         return;
       }
-      const data = await res.json() as { token: string };
+      const data = (await res.json()) as { token: string };
       setAuthToken(data.token);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo login failed");
-      setDemoLoading(false);
+      setDemoLoading(null);
     }
   };
 
@@ -70,27 +73,37 @@ export default function SignInPage() {
   return (
     <div className="min-h-screen bg-background text-on-background font-body flex flex-col items-center justify-center px-5">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo / Brand */}
+        {/* Brand */}
         <div className="text-center">
           <h1 className="font-headline text-4xl font-extrabold text-primary tracking-tight">STRIDE</h1>
           <p className="text-sm text-muted mt-2">Financial wellness, reimagined</p>
         </div>
 
-        {/* Demo Login */}
-        <button
-          onClick={handleDemoLogin}
-          disabled={demoLoading}
-          className="w-full py-4 rounded-full bg-secondary text-on-secondary font-bold text-base hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {demoLoading ? (
-            "Signing in..."
-          ) : (
-            <>
-              <span className="material-symbols-outlined text-lg">play_arrow</span>
-              Try Demo Account
-            </>
-          )}
-        </button>
+        {/* Demo Logins */}
+        <div className="space-y-3">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-muted text-center mb-1">Select a Demo Profile</div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { id: "tanush", name: "Tanush", color: "bg-secondary" },
+              { id: "sarah", name: "Sarah", color: "bg-primary" },
+              { id: "jake", name: "Jake", color: "bg-surface-container-high" },
+              { id: "emma", name: "Emma", color: "bg-surface-container-high" },
+            ].map((user) => (
+              <button
+                key={user.id}
+                onClick={() => void handleDemoLogin(user.id)}
+                disabled={!!demoLoading}
+                className={`py-3 rounded-2xl ${user.color} ${user.color === "bg-surface-container-high" ? "text-on-surface border border-outline-variant" : "text-on-secondary"} font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2`}
+              >
+                {demoLoading === user.id ? (
+                  <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                ) : (
+                  user.name
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Divider */}
         <div className="flex items-center gap-3">

@@ -53,18 +53,18 @@ const AGENT_BG_COLORS: Record<string, string> = {
 
 // ─── Helpers for goal extraction ───
 function extractAmount(text: string): number | null {
-  const match = text.match(/£([\d,]+(?:\.\d{2})?)/);
+  const match = /£([\d,]+(?:\.\d{2})?)/.exec(text);
   return match?.[1] ? parseFloat(match[1].replace(",", "")) : null;
 }
 
 function extractMonths(timeframe: string): number | null {
-  const monthMatch = timeframe.match(/(\d+)\s*month/i);
+  const monthMatch = /(\d+)\s*month/i.exec(timeframe);
   if (monthMatch?.[1]) return parseInt(monthMatch[1]);
-  const yearMatch = timeframe.match(/(\d+)\s*year/i);
+  const yearMatch = /(\d+)\s*year/i.exec(timeframe);
   if (yearMatch?.[1]) return parseInt(yearMatch[1]) * 12;
-  const weekMatch = timeframe.match(/(\d+)\s*week/i);
+  const weekMatch = /(\d+)\s*week/i.exec(timeframe);
   if (weekMatch?.[1]) return Math.ceil(parseInt(weekMatch[1]) / 4);
-  const dayMatch = timeframe.match(/(\d+)\s*day/i);
+  const dayMatch = /(\d+)\s*day/i.exec(timeframe);
   if (dayMatch?.[1]) return Math.ceil(parseInt(dayMatch[1]) / 30);
   return null;
 }
@@ -312,7 +312,7 @@ export default function DecidePage() {
     }
     if (!amount) {
       for (const step of mentorResponse.action_steps ?? []) {
-        const text = typeof step === "string" ? step : (step as ActionStep).action ?? "";
+        const text = typeof step === "string" ? step : step.action ?? "";
         amount = extractAmount(text);
         if (amount) break;
       }
@@ -321,7 +321,7 @@ export default function DecidePage() {
     // Extract timeframe from action steps
     let months: number | null = null;
     for (const step of mentorResponse.action_steps ?? []) {
-      const tf = typeof step === "string" ? step : (step as ActionStep).timeframe ?? "";
+      const tf = typeof step === "string" ? step : step.timeframe ?? "";
       months = extractMonths(tf);
       if (months) break;
     }
@@ -332,7 +332,7 @@ export default function DecidePage() {
 
     // Build goal name from decision title or first action step
     const firstAction = mentorResponse.action_steps?.[0];
-    const actionText = typeof firstAction === "string" ? firstAction : (firstAction as ActionStep)?.action ?? "";
+    const actionText = typeof firstAction === "string" ? firstAction : firstAction?.action ?? "";
     const name = pendingDecision?.title ?? actionText ?? "Savings Goal";
 
     setGoalName(name);
@@ -361,9 +361,9 @@ export default function DecidePage() {
   useEffect(() => {
     if (!mentorResponse || !pendingDecision) return;
     const topic = DECISION_TO_LEARNING_TOPIC[pendingDecision.type] ?? "compound_interest";
-    learning.modules(topic).then((mods) => {
+    void learning.modules(topic).then((mods) => {
       setRelatedModules(mods.filter((m) => !m.completed).slice(0, 2));
-    }).catch(() => {});
+    }).catch(() => undefined);
   }, [mentorResponse, pendingDecision]);
 
   const handleViewModule = async (id: string) => {

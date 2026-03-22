@@ -73,9 +73,9 @@ export default function CheckPage() {
           setShowToast(true);
           setTimeout(() => setShowToast(false), 3000);
           // Same backend action as cancel for now, or just mock it
-          void intents.action(evaluation.id, "cancel").catch(() => {});
+          void intents.action(evaluation.id, "cancel").catch(() => undefined);
         } else {
-          void intents.action(evaluation.id, action).catch(() => {});
+          void intents.action(evaluation.id, action).catch(() => undefined);
         }
       } catch { /* ok */ }
     }

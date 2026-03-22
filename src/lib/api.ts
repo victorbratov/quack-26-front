@@ -1,10 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
-
 /** Set a token directly (used by demo login) */
 export function setAuthToken(token: string) {
-  cachedToken = { token, expiresAt: Date.now() + 60 * 60 * 1000 }; // 1 hour
   if (typeof window !== "undefined") {
     sessionStorage.setItem("stride_demo_token", token);
   }
@@ -12,28 +9,20 @@ export function setAuthToken(token: string) {
 
 /** Clear cached token (used by logout) */
 export function clearAuthToken() {
-  cachedToken = null;
   if (typeof window !== "undefined") {
     sessionStorage.removeItem("stride_demo_token");
   }
 }
 
 export async function getAuthToken(): Promise<string | null> {
-  // Return cached token if still valid (with 60s buffer)
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
-    return cachedToken.token;
-  }
-
-  // Check sessionStorage for demo token
+  // Check sessionStorage for demo token first (most up to date for this window)
   if (typeof window !== "undefined") {
     const stored = sessionStorage.getItem("stride_demo_token");
-    if (stored) {
-      cachedToken = { token: stored, expiresAt: Date.now() + 60 * 60 * 1000 };
-      return stored;
-    }
+    if (stored) return stored;
   }
 
-  // Try Better Auth's JWT token endpoint
+  // ONLY try Better Auth if we are NOT in a demo flow
+  // (In this project, we prefer demo tokens if they exist)
   try {
     const res = await fetch("/api/auth/token", {
       credentials: "include",
@@ -41,7 +30,6 @@ export async function getAuthToken(): Promise<string | null> {
     if (!res.ok) return null;
     const data = (await res.json()) as { token?: string };
     if (data.token) {
-      cachedToken = { token: data.token, expiresAt: Date.now() + 10 * 60 * 1000 };
       return data.token;
     }
   } catch {
