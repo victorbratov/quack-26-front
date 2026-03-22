@@ -91,6 +91,10 @@ export const cards = {
     }),
   dismiss: (cardId: string) =>
     fetchAPI<{ message: string }>(`/cards/${cardId}/dismiss`, { method: "POST" }),
+  answer: (cardId: string, data: { selected_index?: number; choice?: string }) =>
+    fetchAPI<{ correct: boolean; explanation: string; xp_awarded: number }>(
+      `/cards/${cardId}/answer`, { method: "POST", body: JSON.stringify(data) },
+    ),
   history: (days = 30) => fetchAPI<Card[]>(`/cards/history?days=${days}`),
   stats: () => fetchAPI<CardStats>("/cards/stats"),
 };
@@ -188,6 +192,7 @@ export const projections = {
     fetchAPI<WhatIfProjection>(`/projections/what-if?amount=${amount}&is_recurring=${isRecurring}`),
   cardImpact: (cardId: string) => fetchAPI<WhatIfProjection>(`/projections/card/${cardId}/impact`),
   summary: () => fetchAPI<ProjectionSummary>("/projections/summary"),
+  wealthCompare: (years = 20) => fetchAPI<WealthCompareResponse>(`/projections/wealth-compare?years=${years}`),
 };
 
 // ─── Social ───
@@ -492,6 +497,20 @@ export type WealthPath = {
   monthly_contribution: number;
   annual_rate: number;
   current_savings: number;
+};
+
+export type ScenarioProjection = {
+  key: string;
+  label: string;
+  annual_rate: number;
+  description: string;
+  path: { month: number; year: number; balance: number; total_contributed: number; interest_earned: number }[];
+};
+
+export type WealthCompareResponse = {
+  monthly_contribution: number;
+  current_savings: number;
+  scenarios: ScenarioProjection[];
 };
 
 export type WhatIfProjection = {

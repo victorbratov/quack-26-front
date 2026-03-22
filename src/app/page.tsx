@@ -7,6 +7,8 @@ import { Divider } from "~/components/ui/Divider";
 import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { ShimmerButton } from "~/components/ui/ShimmerButton";
+import ReactMarkdown from "react-markdown";
+import { useNotificationIsland } from "~/components/ui/NotificationIsland";
 import { cards as cardsAPI, gamification, debrief as debriefAPI, learning } from "~/lib/api";
 import type { Card, XPInfo, Debrief, LearningModule, LearningModuleDetail } from "~/lib/api";
 
@@ -69,11 +71,13 @@ function SwipeCard({
   isTop,
   stackIndex,
   onSwipe,
+  onQuizAnswer,
 }: {
   card: Card;
   isTop: boolean;
   stackIndex: number;
   onSwipe: (direction: "left" | "right") => void;
+  onQuizAnswer?: (cardId: string, data: { selected_index?: number; choice?: string }) => Promise<{ correct: boolean; explanation: string; xp_awarded: number } | null>;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
@@ -82,6 +86,15 @@ function SwipeCard({
   const startX = useRef(0);
   const startY = useRef(0);
   const isHorizontal = useRef<boolean | null>(null);
+
+  // Quiz/scenario state
+  const isQuiz = card.card_type === "market_quiz";
+  const isScenario = card.card_type === "historical_scenario";
+  const isInteractive = isQuiz || isScenario;
+  const [flipped, setFlipped] = useState(false);
+  const [quizResult, setQuizResult] = useState<{ correct: boolean; explanation: string; xp_awarded: number } | null>(null);
+  const [answering, setAnswering] = useState(false);
+  const [showResult, setShowResult] = useState(true);
 
   const handleStart = useCallback((clientX: number, clientY: number) => {
     if (!isTop) return;
@@ -183,42 +196,214 @@ function SwipeCard({
         </div>
       )}
 
-      <div className="h-full rounded-2xl border border-white/[0.1] bg-black p-8 md:p-10 flex flex-col" style={{ cursor: isTop ? "grab" : "default" }}>
+      <div
+        className="h-full rounded-2xl border border-white/[0.1] bg-black p-8 md:p-10 flex flex-col"
+        style={{ cursor: isTop && isQuiz ? "pointer" : isTop ? "grab" : "default" }}
+        onClick={() => {
+          if (!isTop || !isQuiz || isDragging || Math.abs(dragX) > 8) return;
+          if (!quizResult) {
+            setFlipped(!flipped);
+          } else {
+            setShowResult(!showResult);
+          }
+        }}
+      >
         {/* Top: card type badge */}
         <div className="mb-auto">
-          <div className="inline-block px-3 py-1.5 rounded-full bg-white/5 border border-outline-variant">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary">{card.card_type.replace(/_/g, " ")}</span>
+          <div className={`inline-block px-3 py-1.5 rounded-full border ${
+            isQuiz ? "bg-emerald-400/10 border-emerald-400/30" :
+            isScenario ? "bg-amber-400/10 border-amber-400/30" :
+            "bg-white/5 border-outline-variant"
+          }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-widest ${
+              isQuiz ? "text-emerald-400" : isScenario ? "text-amber-400" : "text-secondary"
+            }`}>{card.card_type.replace(/_/g, " ")}</span>
           </div>
         </div>
 
         {/* Center: main content */}
-        <div className="flex-1 flex flex-col justify-center py-6 space-y-4">
-          <h3 className="text-3xl md:text-4xl font-headline font-bold text-on-surface leading-tight">{card.title}</h3>
-          <p className="text-lg md:text-xl text-muted leading-relaxed">{card.body}</p>
-          {card.potential_savings != null && card.potential_savings > 0 && (
-            <div className="pt-2">
-              <span className="text-3xl md:text-4xl font-headline font-extrabold text-primary">
-                £<AnimatedCounter value={card.potential_savings} decimals={2} />
-              </span>
-              <span className="text-sm text-muted ml-2">potential savings</span>
-            </div>
+        <div className="flex-1 flex flex-col justify-center py-6 space-y-4 overflow-y-auto">
+          {/* QUIZ CARD — front (headline) or back (question + options) */}
+          {isQuiz && !flipped && !quizResult && (
+            <>
+              <h3 className="text-2xl md:text-3xl font-headline font-bold text-on-surface leading-tight">{card.detail_json?.fact_headline as string ?? card.title}</h3>
+              {card.detail_json?.context && (
+                <p className="text-sm text-on-surface/70 leading-relaxed">{card.detail_json.context as string}</p>
+              )}
+              <p className="text-sm text-emerald-400/80 mt-1">Tap to test yourself</p>
+            </>
           )}
-          {(() => {
-            const impact = getImpactLine(card);
-            return impact ? (
-              <p className="text-sm text-secondary/80 italic">{impact}</p>
-            ) : null;
-          })()}
+          {isQuiz && flipped && !quizResult && (
+            <>
+              <p className="text-xs text-muted">Tap to go back to the context</p>
+              <h3 className="text-xl md:text-2xl font-headline font-bold text-on-surface leading-tight">{card.detail_json?.question as string ?? card.body}</h3>
+              <div className="space-y-2 pt-2">
+                {((card.detail_json?.options as string[]) ?? []).map((option, i) => (
+                  <button
+                    key={i}
+                    disabled={answering}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (answering || !onQuizAnswer) return;
+                      setAnswering(true);
+                      const result = await onQuizAnswer(card.id, { selected_index: i });
+                      if (result) setQuizResult(result);
+                      setAnswering(false);
+                    }}
+                    className="w-full py-3 px-4 rounded-xl border border-outline-variant bg-white/[0.03] text-left text-sm text-on-surface hover:border-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                  >
+                    <span className="font-bold text-muted mr-2">{String.fromCharCode(65 + i)}.</span>
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* SCENARIO CARD — event + hold/sell buttons */}
+          {isScenario && !quizResult && (
+            <>
+              <div className="text-xs font-bold uppercase tracking-widest text-amber-400">{card.detail_json?.event_date as string}</div>
+              <h3 className="text-2xl md:text-3xl font-headline font-bold text-on-surface leading-tight">{card.detail_json?.event_title as string ?? card.title}</h3>
+              <p className="text-base text-muted leading-relaxed">{card.detail_json?.event_description as string ?? card.body}</p>
+              {isTop && (
+                <div className="flex gap-3 pt-2">
+                  <button
+                    disabled={answering}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (answering || !onQuizAnswer) return;
+                      setAnswering(true);
+                      const result = await onQuizAnswer(card.id, { choice: "held" });
+                      if (result) setQuizResult(result);
+                      setAnswering(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 font-bold text-sm hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+                  >
+                    I&apos;d hold
+                  </button>
+                  <button
+                    disabled={answering}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (answering || !onQuizAnswer) return;
+                      setAnswering(true);
+                      const result = await onQuizAnswer(card.id, { choice: "sold" });
+                      if (result) setQuizResult(result);
+                      setAnswering(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 font-bold text-sm hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                  >
+                    I&apos;d sell
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Quiz result — tappable to flip back to question */}
+          {isQuiz && quizResult && showResult && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className={`material-symbols-outlined text-2xl ${quizResult.correct ? "text-emerald-400" : "text-amber-400"}`}>
+                  {quizResult.correct ? "check_circle" : "info"}
+                </span>
+                <span className={`font-headline font-bold text-xl ${quizResult.correct ? "text-emerald-400" : "text-amber-400"}`}>
+                  {quizResult.correct ? "Correct!" : "Not quite!"}
+                </span>
+              </div>
+              <p className="text-sm text-on-surface/80 leading-relaxed whitespace-pre-wrap">{quizResult.explanation}</p>
+              <div className="text-xs font-bold text-primary">+{quizResult.xp_awarded} XP</div>
+              <p className="text-xs text-muted mt-1">Tap to see the question again</p>
+            </>
+          )}
+          {isQuiz && quizResult && !showResult && (
+            <>
+              <h3 className="text-xl md:text-2xl font-headline font-bold text-on-surface leading-tight">{card.detail_json?.question as string ?? card.body}</h3>
+              <div className="space-y-2 pt-2">
+                {((card.detail_json?.options as string[]) ?? []).map((option, i) => {
+                  const correctIdx = card.detail_json?.correct_index as number ?? 0;
+                  return (
+                    <div
+                      key={i}
+                      className={`w-full py-3 px-4 rounded-xl border text-left text-sm ${
+                        i === correctIdx
+                          ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                          : "border-outline-variant bg-white/[0.03] text-muted"
+                      }`}
+                    >
+                      <span className="font-bold mr-2">{String.fromCharCode(65 + i)}.</span>
+                      {option}
+                      {i === correctIdx && <span className="material-symbols-outlined text-sm ml-2 align-middle">check</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted mt-1">Tap to see the explanation</p>
+            </>
+          )}
+
+          {/* Scenario result */}
+          {isScenario && quizResult && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className={`material-symbols-outlined text-2xl ${quizResult.correct ? "text-emerald-400" : "text-amber-400"}`}>
+                  {quizResult.correct ? "check_circle" : "info"}
+                </span>
+                <span className={`font-headline font-bold text-xl ${quizResult.correct ? "text-emerald-400" : "text-amber-400"}`}>
+                  Here&apos;s what happened:
+                </span>
+              </div>
+              <p className="text-sm text-on-surface/80 leading-relaxed whitespace-pre-wrap">{quizResult.explanation}</p>
+              <div className="text-xs font-bold text-primary">+{quizResult.xp_awarded} XP</div>
+            </>
+          )}
+
+          {/* STANDARD CARD — original rendering */}
+          {!isInteractive && (
+            <>
+              <h3 className="text-3xl md:text-4xl font-headline font-bold text-on-surface leading-tight">{card.title}</h3>
+              <p className="text-lg md:text-xl text-muted leading-relaxed">{card.body}</p>
+              {card.potential_savings != null && card.potential_savings > 0 && (
+                <div className="pt-2">
+                  <span className="text-3xl md:text-4xl font-headline font-extrabold text-primary">
+                    £<AnimatedCounter value={card.potential_savings} decimals={2} />
+                  </span>
+                  <span className="text-sm text-muted ml-2">potential savings</span>
+                </div>
+              )}
+              {(() => {
+                const impact = getImpactLine(card);
+                return impact ? (
+                  <p className="text-sm text-secondary/80 italic">{impact}</p>
+                ) : null;
+              })()}
+            </>
+          )}
         </div>
 
         {/* Bottom: action buttons */}
-        {isTop && (
+        {isTop && !isInteractive && (
           <div className="flex gap-3 pt-4">
             <button onClick={() => onSwipe("left")} className="flex-1 py-3.5 md:py-4 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-base text-on-surface flex items-center justify-center gap-2">
               <span className="material-symbols-outlined text-xl">close</span>Dismiss
             </button>
             <button onClick={() => onSwipe("right")} className="flex-1 py-3.5 md:py-4 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity shadow-[0_0_20px_rgba(230,221,197,0.2)] whitespace-nowrap overflow-hidden px-4">
               <span className="material-symbols-outlined text-lg shrink-0">check</span><span className="truncate">{getCtaLabel(card)}</span>
+            </button>
+          </div>
+        )}
+        {isTop && isInteractive && quizResult && (
+          <div className="pt-4">
+            <button onClick={() => onSwipe("right")} className="w-full py-3.5 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-sm text-on-surface">
+              Continue
+            </button>
+          </div>
+        )}
+        {isTop && isInteractive && !quizResult && !isScenario && !flipped && (
+          <div className="pt-4">
+            <button onClick={() => onSwipe("left")} className="w-full py-3 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-sm text-muted">
+              Skip
             </button>
           </div>
         )}
@@ -246,6 +431,7 @@ export default function Home() {
   const [learningModules, setLearningModules] = useState<LearningModule[]>([]);
   const [selectedModule, setSelectedModule] = useState<LearningModuleDetail | null>(null);
   const [completingModule, setCompletingModule] = useState<string | null>(null);
+  const [moduleStep, setModuleStep] = useState(0);
 
   const today = new Date();
   const currentDayIndex = (today.getDay() + 6) % 7;
@@ -308,6 +494,7 @@ export default function Home() {
     setSelectedDay(dayIndex);
   };
 
+  const island = useNotificationIsland();
   const activeCard = cardDeck[0];
   const isViewingPastDay = selectedDay !== null && selectedDay !== currentDayIndex;
 
@@ -326,6 +513,7 @@ export default function Home() {
       if (direction === "right") {
         setXpAnim({ id: newId, text: "+5 XP" });
         if (xpInfo) setXpInfo({ ...xpInfo, total_xp: xpInfo.total_xp + 5 });
+        island?.show("star", "+5 XP", "#c9b183");
       } else {
         setXpAnim({ id: newId, text: "Dismissed" });
       }
@@ -351,12 +539,33 @@ export default function Home() {
     setGeneratingDebrief(false);
   };
 
+  const handleQuizAnswer = async (cardId: string, data: { selected_index?: number; choice?: string }) => {
+    try {
+      const result = await cardsAPI.answer(cardId, data);
+      const newId = animId + 1;
+      setAnimId(newId);
+      setXpAnim({ id: newId, text: `+${result.xp_awarded} XP` });
+      if (xpInfo) setXpInfo({ ...xpInfo, total_xp: xpInfo.total_xp + result.xp_awarded });
+      setTimeout(() => setXpAnim(null), 1000);
+      island?.show(
+        result.correct ? "check_circle" : "info",
+        `+${result.xp_awarded} XP`,
+        result.correct ? "#34d399" : "#fbbf24"
+      );
+      return result;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  };
+
   const uncompletedModules = learningModules.filter((m) => !m.completed);
 
   const handleViewModule = async (id: string) => {
     try {
       const detail = await learning.get(id);
       setSelectedModule(detail);
+      setModuleStep(0);
     } catch (e) { console.error(e); }
   };
 
@@ -372,6 +581,7 @@ export default function Home() {
       setXpAnim({ id: newId, text: `+${result.xp_awarded} XP` });
       if (xpInfo) setXpInfo({ ...xpInfo, total_xp: xpInfo.total_xp + result.xp_awarded });
       setTimeout(() => setXpAnim(null), 1000);
+      island?.show("school", `+${result.xp_awarded} XP`, "#c9b183");
     } catch (e) { console.error(e); }
     setCompletingModule(null);
   };
@@ -538,6 +748,7 @@ export default function Home() {
                   isTop={i === 0}
                   stackIndex={i}
                   onSwipe={handleSwipe}
+                  onQuizAnswer={handleQuizAnswer}
                 />
               ))
             )}
@@ -604,37 +815,67 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            {/* Content */}
-            <div className="p-5 overflow-y-auto flex-1">
-              <div className="prose prose-invert prose-sm max-w-none text-on-surface text-sm leading-relaxed whitespace-pre-wrap">
-                {selectedModule.content}
-              </div>
-            </div>
-            {/* Footer */}
-            {!selectedModule.completed && (
-              <div className="p-5 pt-3 border-t border-white/[0.05] shrink-0">
-                <button
-                  onClick={() => handleCompleteModule(selectedModule.id)}
-                  disabled={completingModule === selectedModule.id}
-                  className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {completingModule === selectedModule.id ? (
-                    <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
-                  ) : (
-                    <span className="material-symbols-outlined text-base">check</span>
+            {/* Content — supports multi-step modules (delimited by ---STEP---) */}
+            {(() => {
+              const steps = selectedModule.content.split("---STEP---").map(s => s.trim()).filter(Boolean);
+              const isMultiStep = steps.length > 1;
+              const totalSteps = steps.length;
+              const currentContent = steps[moduleStep] ?? steps[0] ?? selectedModule.content;
+
+              return (
+                <>
+                  {/* Step indicator */}
+                  {isMultiStep && (
+                    <div className="px-5 pt-3 shrink-0 flex items-center gap-2">
+                      {steps.map((_, i) => (
+                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= moduleStep ? "bg-primary" : "bg-white/10"}`} />
+                      ))}
+                      <span className="text-xs text-muted ml-2 shrink-0">{moduleStep + 1}/{totalSteps}</span>
+                    </div>
                   )}
-                  {completingModule === selectedModule.id ? "Completing..." : `Mark Complete (+${selectedModule.xp_reward} XP)`}
-                </button>
-              </div>
-            )}
-            {selectedModule.completed && (
-              <div className="p-5 pt-3 border-t border-white/[0.05] shrink-0">
-                <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-3 flex items-center gap-3">
-                  <span className="material-symbols-outlined text-green-400">done_all</span>
-                  <p className="text-sm font-bold text-green-400">Completed!</p>
-                </div>
-              </div>
-            )}
+                  <div className="p-5 overflow-y-auto flex-1">
+                    <div className="prose prose-invert prose-sm max-w-none text-on-surface text-sm leading-relaxed">
+                      <ReactMarkdown>{currentContent}</ReactMarkdown>
+                    </div>
+                  </div>
+                  {/* Footer */}
+                  {isMultiStep && moduleStep < totalSteps - 1 && (
+                    <div className="p-5 pt-3 border-t border-white/[0.05] shrink-0">
+                      <button
+                        onClick={() => setModuleStep(moduleStep + 1)}
+                        className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2"
+                      >
+                        Next <span className="material-symbols-outlined text-base">arrow_forward</span>
+                      </button>
+                    </div>
+                  )}
+                  {(!isMultiStep || moduleStep === totalSteps - 1) && !selectedModule.completed && (
+                    <div className="p-5 pt-3 border-t border-white/[0.05] shrink-0">
+                      <button
+                        onClick={() => handleCompleteModule(selectedModule.id)}
+                        disabled={completingModule === selectedModule.id}
+                        className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {completingModule === selectedModule.id ? (
+                          <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-base">check</span>
+                        )}
+                        {completingModule === selectedModule.id ? "Completing..." : `Mark Complete (+${selectedModule.xp_reward} XP)`}
+                      </button>
+                    </div>
+                  )}
+                  {(!isMultiStep || moduleStep === totalSteps - 1) && selectedModule.completed && (
+                    <div className="p-5 pt-3 border-t border-white/[0.05] shrink-0">
+                      <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-3 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-green-400">done_all</span>
+                        <p className="text-sm font-bold text-green-400">Completed!</p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

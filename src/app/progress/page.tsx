@@ -172,37 +172,44 @@ export default function ProgressPage() {
 
   return (
     <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body">
-      {/* Profile Header */}
-      <div className="flex flex-col items-center px-5 md:px-8 pt-8 pb-4">
-        <div className="relative mb-3">
-          <ProgressRing progress={xpProgress} size={88} strokeWidth={3} color="#c9b183">
-            <GradientAvatar size={72} initials={user?.display_name?.[0] ?? "?"} />
-          </ProgressRing>
-        </div>
-        <h1 className="text-2xl md:text-3xl font-headline font-extrabold text-on-surface">{user?.display_name ?? "User"}</h1>
-        <p className="text-sm text-muted mt-0.5">{user?.email}</p>
-        <button
-          onClick={handleLogout}
-          className="mt-3 px-5 py-2 rounded-full border border-outline-variant text-sm font-medium text-muted hover:text-error hover:border-error/50 transition-colors"
-        >
-          Sign out
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 px-5 md:px-8 mt-2">
-        {[
-          { value: xpInfo?.level ?? 0, label: "Level", prefix: "Lvl ", color: "text-primary" },
-          { value: mainStreak?.current_count ?? user?.current_streak_days ?? 0, label: "Day Streak", color: "text-secondary" },
-          { value: projSummary?.total_saved ?? 0, label: "Saved", prefix: "£", color: "text-primary" },
-        ].map((stat) => (
-          <SpotlightCard key={stat.label} className="p-3 md:p-4 text-center">
-            <div className={`text-xl md:text-2xl font-headline font-bold ${stat.color}`}>
-              <AnimatedCounter value={stat.value} prefix={stat.prefix} />
+      {/* Profile Card */}
+      <div className="px-5 md:px-8 pt-8">
+        <SpotlightCard className="p-6 relative" spotlightColor="rgba(201, 177, 131, 0.1)">
+          <button
+            onClick={handleLogout}
+            className="absolute top-4 right-4 px-3 py-1 rounded-full border border-outline-variant text-[11px] font-medium text-muted hover:text-error hover:border-error/50 transition-colors"
+          >
+            Sign out
+          </button>
+          <div className="flex items-center gap-5">
+            <div className="shrink-0">
+              <ProgressRing progress={xpProgress} size={76} strokeWidth={3} color="#c9b183">
+                <GradientAvatar size={62} initials={user?.display_name?.[0] ?? "?"} />
+              </ProgressRing>
             </div>
-            <div className="text-[10px] md:text-xs uppercase text-muted font-bold tracking-wider mt-1">{stat.label}</div>
-          </SpotlightCard>
-        ))}
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl md:text-2xl font-headline font-extrabold text-on-surface truncate">{user?.display_name ?? "User"}</h1>
+              <p className="text-xs text-muted mt-0.5 truncate">{user?.email}</p>
+            </div>
+          </div>
+
+          <div className="h-px bg-white/[0.06] my-4" />
+
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { value: xpInfo?.level ?? 0, label: "Level", prefix: "Lvl ", color: "text-primary" },
+              { value: mainStreak?.current_count ?? user?.current_streak_days ?? 0, label: "Day Streak", color: "text-secondary" },
+              { value: projSummary?.total_saved ?? 0, label: "Saved", prefix: "£", color: "text-primary" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className={`text-xl md:text-2xl font-headline font-bold ${stat.color}`}>
+                  <AnimatedCounter value={stat.value} prefix={stat.prefix} />
+                </div>
+                <div className="text-[10px] md:text-xs uppercase text-muted font-bold tracking-wider mt-0.5">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </SpotlightCard>
       </div>
 
       {milestones.length > 0 && (

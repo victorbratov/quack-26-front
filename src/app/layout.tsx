@@ -6,6 +6,7 @@ import { Plus_Jakarta_Sans, Manrope, Playfair_Display } from "next/font/google";
 import { TRPCReactProvider } from "~/trpc/react";
 
 import { BottomNavBar } from "~/components/BottomNavBar";
+import { NotificationIslandProvider } from "~/components/ui/NotificationIsland";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -69,12 +70,14 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-on-surface min-h-screen">
         <TRPCReactProvider>
-          <div className="relative">
-            <main className="page-enter">
-              {children}
-            </main>
-            <BottomNavBar />
-          </div>
+          <NotificationIslandProvider>
+            <div className="relative">
+              <main className="page-enter">
+                {children}
+              </main>
+              <BottomNavBar />
+            </div>
+          </NotificationIslandProvider>
         </TRPCReactProvider>
       </body>
     </html>

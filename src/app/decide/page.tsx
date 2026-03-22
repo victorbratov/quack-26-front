@@ -74,6 +74,7 @@ const DECISION_TO_LEARNING_TOPIC: Record<string, string> = {
   afford_trip: "budgeting",
   extra_shifts: "budgeting",
   switch_banks: "budgeting",
+  start_investing: "investing",
   custom: "compound_interest",
 };
 
@@ -123,6 +124,11 @@ const PARAM_FIELDS: Record<string, { label: string; key: string; prefix?: string
     { label: "Current bank", key: "current_bank", placeholder: "Barclays" },
     { label: "Considering", key: "considering", placeholder: "Monzo" },
   ],
+  start_investing: [
+    { label: "Monthly amount to invest", key: "monthly_amount", prefix: "£", placeholder: "50" },
+    { label: "Investment type", key: "investment_type", placeholder: "stocks and shares ISA / index fund" },
+    { label: "Time horizon", key: "time_horizon", placeholder: "5 years" },
+  ],
   custom: [
     { label: "What's your question?", key: "custom_prompt", placeholder: "Should I start investing £50/month?" },
     { label: "Amount involved (if any)", key: "amount", prefix: "£", placeholder: "50" },
@@ -169,6 +175,7 @@ export default function DecidePage() {
     extra_shifts: "schedule",
     shifts: "schedule",
     switch_banks: "account_balance",
+    start_investing: "trending_up",
     custom: "edit_note",
   };
 
@@ -370,16 +377,27 @@ export default function DecidePage() {
     } catch (e) { console.error(e); }
   };
 
+  const imageMap: Record<string, string> = {
+    move_flat: "/decisions/move_flat.jpg",
+    get_credit_card: "/decisions/get_credit_card.jpg",
+    credit_card: "/decisions/get_credit_card.jpg",
+    buy_car: "/decisions/buy_car.jpg",
+    afford_trip: "/decisions/afford_trip.jpg",
+    extra_shifts: "/decisions/extra_shifts.jpg",
+    switch_banks: "/decisions/switch_banks.jpg",
+    start_investing: "/decisions/start_investing.jpg",
+  };
+
   const templateCards = [
     ...(templates.length > 0
-      ? templates.map((t) => ({ icon: iconMap[t.decision_type] ?? "help", title: t.title, type: t.decision_type, description: t.description }))
+      ? templates.map((t) => ({ icon: iconMap[t.decision_type] ?? "help", image: imageMap[t.decision_type], title: t.title, type: t.decision_type, description: t.description }))
       : [
-          { icon: "house", title: "Should I move flats?", type: "move_flat", description: "" },
-          { icon: "credit_card", title: "Should I get a credit card?", type: "credit_card", description: "" },
-          { icon: "directions_car", title: "Should I buy a car?", type: "buy_car", description: "" },
-          { icon: "flight_takeoff", title: "Can I afford this trip?", type: "afford_trip", description: "" },
-          { icon: "schedule", title: "Should I pick up extra shifts?", type: "extra_shifts", description: "" },
-          { icon: "account_balance", title: "Should I switch banks?", type: "switch_banks", description: "" },
+          { icon: "house", image: imageMap.move_flat, title: "Should I move to a different flat?", type: "move_flat", description: "Evaluate whether moving to a new flat makes financial sense" },
+          { icon: "credit_card", image: imageMap.credit_card, title: "Should I get a credit card?", type: "credit_card", description: "Evaluate whether getting a credit card is right for you" },
+          { icon: "directions_car", image: imageMap.buy_car, title: "Should I buy a car?", type: "buy_car", description: "Compare the costs of car ownership vs your current setup" },
+          { icon: "flight_takeoff", image: imageMap.afford_trip, title: "Can I afford this trip?", type: "afford_trip", description: "Check if a trip fits your budget without derailing your goals" },
+          { icon: "schedule", image: imageMap.extra_shifts, title: "Should I pick up extra shifts?", type: "extra_shifts", description: "Weigh the financial benefit against study time and wellbeing" },
+          { icon: "account_balance", image: imageMap.switch_banks, title: "Should I switch banks?", type: "switch_banks", description: "Compare your current banking setup against alternatives" },
         ]),
   ];
 
@@ -428,8 +446,17 @@ export default function DecidePage() {
                     onClick={() => handleTemplateClick(dec.title, dec.type)}
                     className="rounded-2xl border border-outline-variant bg-surface-container overflow-hidden text-left group hover:border-primary transition-colors"
                   >
-                    <div className="h-24 bg-gradient-to-br from-surface-container-high to-surface flex items-center justify-center">
-                      <span className="material-symbols-outlined text-3xl text-muted group-hover:text-primary transition-colors">{dec.icon}</span>
+                    <div className="h-28 relative overflow-hidden">
+                      {dec.image ? (
+                        <>
+                          <img src={dec.image} alt={dec.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-surface-container via-surface-container/60 to-transparent" />
+                        </>
+                      ) : (
+                        <div className="h-full bg-gradient-to-br from-surface-container-high to-surface flex items-center justify-center">
+                          <span className="material-symbols-outlined text-3xl text-muted group-hover:text-primary transition-colors">{dec.icon}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3">
                       <h4 className="font-bold text-sm text-on-surface leading-tight group-hover:text-primary transition-colors">{dec.title}</h4>
