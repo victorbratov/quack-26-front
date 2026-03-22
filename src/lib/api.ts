@@ -194,6 +194,9 @@ export const projections = {
 export const social = {
   friends: () => fetchAPI<Friend[]>("/social/friends"),
   feed: (limit = 20) => fetchAPI<FeedItem[]>(`/social/feed?limit=${limit}`),
+  searchUsers: (query: string) => fetchAPI<Friend[]>(`/social/users/search?q=${encodeURIComponent(query)}`),
+  listRequests: (direction: "received" | "sent") =>
+    fetchAPI<FriendRequest[]>(`/social/friends/requests?direction=${direction}`),
   sendRequest: (toUserId: string) =>
     fetchAPI<FriendRequest>("/social/friends/request", {
       method: "POST",
@@ -521,6 +524,7 @@ export type FriendRequest = {
   to_user_id: string;
   status: string;
   created_at: string;
+  display_name?: string;
 };
 
 export type FeedItem = {

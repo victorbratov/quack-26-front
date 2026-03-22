@@ -19,7 +19,7 @@ import {
 import type {
   AuthUser, SavingsGoal, RecurringTransaction, GhostSavingsPotential,
   XPInfo, Streak, SpendingBenchmark,
-  ProjectionSummary, CategorySummary, Milestone, WhatIfProjection,
+  ProjectionSummary, CategorySummary, Milestone,
   Debrief,
 } from "~/lib/api";
 
@@ -59,9 +59,6 @@ export default function ProgressPage() {
   const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
 
-  const [whatIfAmount, setWhatIfAmount] = useState("");
-  const [whatIfResult, setWhatIfResult] = useState<WhatIfProjection | null>(null);
-  const [whatIfRecurring, setWhatIfRecurring] = useState(true);
   const [debriefList, setDebriefList] = useState<Debrief[]>([]);
   const [selectedDebrief, setSelectedDebrief] = useState<Debrief | null>(null);
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
@@ -113,15 +110,6 @@ export default function ProgressPage() {
       setGoalsList((prev) => prev.map((g) => (g.id === id ? updated : g)));
       setDepositGoalId(null);
       setDepositAmount("");
-    } catch (e) { console.error(e); }
-  };
-
-  const handleWhatIf = async () => {
-    const amt = Number(whatIfAmount);
-    if (!amt || amt <= 0) return;
-    try {
-      const result = await projections.whatIf(amt, whatIfRecurring);
-      setWhatIfResult(result);
     } catch (e) { console.error(e); }
   };
 

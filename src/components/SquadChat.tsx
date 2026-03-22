@@ -58,9 +58,8 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
       {/* Header */}
       <div className="px-5 py-3 border-b border-outline-variant flex items-center justify-between bg-surface-container-high/40">
         <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${connected ? "bg-primary shadow-[0_0_8px_rgba(230,221,197,0.5)]" : "bg-muted"}`} />
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
-            {connected ? "Live Stream Active" : "Connecting..."}
+            {connected ? "Connected" : "Connecting..."}
           </span>
         </div>
         {error && <span className="text-[10px] text-error font-bold uppercase">{error}</span>}
@@ -80,7 +79,7 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
             {messages.map((msg, idx) => {
               const isMe = msg.user_id === currentUserId;
               const reactionGroups = groupReactions(msg.reactions);
-              
+
               // Smart positioning for top messages to avoid clipping
               const showBelow = idx < 2;
 
@@ -108,11 +107,10 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
                       <motion.div
                         whileTap={{ scale: 0.98 }}
                         onClick={() => setShowEmojiPickerFor(showEmojiPickerFor === msg.id ? null : msg.id)}
-                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed cursor-pointer transition-all select-none ${
-                          isMe
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed cursor-pointer transition-all select-none ${isMe
                             ? "bg-primary text-on-primary rounded-br-none hover:bg-primary/90"
                             : "bg-surface-container-high text-on-surface border border-outline-variant rounded-bl-none hover:bg-surface-container-high/80"
-                        }`}
+                          }`}
                       >
                         {msg.content}
                       </motion.div>
@@ -122,12 +120,12 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
                         {showEmojiPickerFor === msg.id && (
                           <>
                             {/* Backdrop to close picker */}
-                            <div 
-                              className="fixed inset-0 z-10" 
+                            <div
+                              className="fixed inset-0 z-10"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setShowEmojiPickerFor(null);
-                              }} 
+                              }}
                             />
                             <motion.div
                               initial={{ opacity: 0, scale: 0.9, y: showBelow ? -10 : 10 }}
@@ -148,11 +146,10 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
                                       toggleReaction(msg.id, emoji);
                                       setShowEmojiPickerFor(null);
                                     }}
-                                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all text-lg ${
-                                      hasReacted 
-                                        ? "bg-primary/20 grayscale-[0.5] opacity-60" 
+                                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all text-lg ${hasReacted
+                                        ? "bg-primary/20 grayscale-[0.5] opacity-60"
                                         : "hover:bg-white/10"
-                                    }`}
+                                      }`}
                                   >
                                     {emoji}
                                   </motion.button>
@@ -174,11 +171,10 @@ export function SquadChat({ squadId, currentUserId }: SquadChatProps) {
                               e.stopPropagation();
                               toggleReaction(msg.id, rg.emoji);
                             }}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all border ${
-                              rg.reactedByMe
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all border ${rg.reactedByMe
                                 ? "bg-primary/20 border-primary text-primary"
                                 : "bg-white/[0.04] border-outline-variant text-muted hover:border-outline"
-                            }`}
+                              }`}
                           >
                             <span>{rg.emoji}</span>
                             <span>{rg.count}</span>

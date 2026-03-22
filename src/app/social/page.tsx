@@ -8,7 +8,7 @@ import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedList } from "~/components/ui/AnimatedList";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { social, squads as squadsAPI, challenges as challengesAPI, gamification, auth } from "~/lib/api";
-import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser } from "~/lib/api";
+import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser, FriendRequest } from "~/lib/api";
 import { SquadChat } from "~/components/SquadChat";
 
 type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
@@ -23,6 +23,9 @@ const EVENT_ICONS: Record<string, string> = {
   challenge_completed: "emoji_events",
   savings_milestone: "savings",
   squad_joined: "group",
+  friend_added: "person_add",
+  goal_completed: "emoji_events",
+  module_completed: "school",
 };
 
 export default function SocialPage() {
@@ -34,11 +37,15 @@ export default function SocialPage() {
   const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
   const [allChallenges, setAllChallenges] = useState<Challenge[]>([]);
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null);
+  const [pendingReceivedRequests, setPendingReceivedRequests] = useState<FriendRequest[]>([]);
+  const [pendingSentRequests, setPendingSentRequests] = useState<FriendRequest[]>([]);
+  const [searchResults, setSearchResults] = useState<Friend[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [squadName, setSquadName] = useState("");
   const [selectedChallenge, setSelectedChallenge] = useState<ChallengeDetail | null>(null);
   const [selectedSquad, setSelectedSquad] = useState<SquadDetail | null>(null);
-  const [friendUserId, setFriendUserId] = useState("");
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [squadView, setSquadView] = useState<SquadView>("members");
@@ -64,6 +71,75 @@ export default function SocialPage() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "Friends") {
+      void Promise.allSettled([
+        social.listRequests("received"),
+        social.listRequests("sent"),
+      ]).then(([receivedR, sentR]) => {
+        if (receivedR.status === "fulfilled") setPendingReceivedRequests(receivedR.value);
+        if (sentR.status === "fulfilled") setPendingSentRequests(sentR.value);
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        setIsSearching(true);
+        try {
+          const results = await social.searchUsers(searchQuery.trim());
+          setSearchResults(results);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearching(false);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleAcceptFriendRequest = async (id: string) => {
+    try {
+      await social.acceptRequest(id);
+      setPendingReceivedRequests((prev) => prev.filter((r) => r.id !== id));
+      // Refresh friends list
+      const updatedFriends = await social.friends();
+      setFriends(updatedFriends);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleRejectFriendRequest = async (id: string, direction: "received" | "sent") => {
+    try {
+      if (direction === "received") {
+        await social.rejectRequest(id);
+        setPendingReceivedRequests((prev) => prev.filter((r) => r.id !== id));
+      } else {
+        // For sent requests, rejecting usually means cancelling
+        // The API summary mentioned rejectRequest(requestId)
+        await social.rejectRequest(id);
+        setPendingSentRequests((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleSendFriendRequest = async (userId: string) => {
+    try {
+      await social.sendRequest(userId);
+      // Refresh sent requests
+      const updatedSent = await social.listRequests("sent");
+      setPendingSentRequests(updatedSent);
+    } catch (e) {
+      console.error("Failed to send friend request:", e);
+      // Optional: you could set a local error state here to show a toast/message to the user
+    }
+  };
 
   const handleJoinSquad = async () => {
     if (!inviteCode) return;
@@ -109,14 +185,6 @@ export default function SocialPage() {
     try {
       const detail = await challengesAPI.get(id);
       setSelectedChallenge(detail);
-    } catch (e) { console.error(e); }
-  };
-
-  const handleSendFriendRequest = async () => {
-    if (!friendUserId.trim()) return;
-    try {
-      await social.sendRequest(friendUserId.trim());
-      setFriendUserId("");
     } catch (e) { console.error(e); }
   };
 
@@ -532,17 +600,91 @@ export default function SocialPage() {
 
           {/* ─── FRIENDS ─── */}
           {activeTab === "Friends" && (
-            <div className="px-5 md:px-8 space-y-5">
+            <div className="px-5 md:px-8 space-y-6">
+              {/* Find Friends Button (Always at top) */}
+              <div className="pt-2">
+                <button
+                  onClick={() => { setShowAddFriend(true); setSearchResults([]); setSearchQuery(""); }}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-primary/30 bg-primary/5 text-primary text-sm font-bold hover:bg-primary/10 transition-all active:scale-[0.98] shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-xl">person_add</span>
+                  Find Someone to Follow
+                </button>
+              </div>
+
+              {/* Pending Received Requests */}
+              {pendingReceivedRequests.length > 0 && (
+                <>
+                  <SectionHeader title="RECEIVED REQUESTS" />
+                  <div className="space-y-3">
+                    {pendingReceivedRequests.map((req) => (
+                      <SpotlightCard key={req.id} className="p-4">
+                        <div className="flex items-center gap-4">
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} size={40} />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
+                            <p className="text-[11px] text-muted">Sent you a friend request</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => void handleAcceptFriendRequest(req.id)}
+                              className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary/30 transition-colors"
+                              title="Accept"
+                            >
+                              <span className="material-symbols-outlined text-lg">check</span>
+                            </button>
+                            <button
+                              onClick={() => void handleRejectFriendRequest(req.id, "received")}
+                              className="w-9 h-9 rounded-full bg-white/[0.05] text-muted flex items-center justify-center hover:bg-white/[0.1] transition-colors"
+                              title="Decline"
+                            >
+                              <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                          </div>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Pending Sent Requests */}
+              {pendingSentRequests.length > 0 && (
+                <>
+                  <SectionHeader title="SENT REQUESTS" />
+                  <div className="space-y-3">
+                    {pendingSentRequests.map((req) => (
+                      <SpotlightCard key={req.id} className="p-4">
+                        <div className="flex items-center gap-4 opacity-70">
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} size={40} />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
+                            <p className="text-[11px] text-muted">Awaiting response</p>
+                          </div>
+                          <button
+                            onClick={() => void handleRejectFriendRequest(req.id, "sent")}
+                            className="w-9 h-9 rounded-full bg-white/[0.05] text-muted flex items-center justify-center hover:bg-white/[0.1] transition-colors"
+                            title="Cancel Request"
+                          >
+                            <span className="material-symbols-outlined text-lg">close</span>
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </div>
+                </>
+              )}
+
               {/* Leaderboard */}
               {leaderboard && leaderboard.entries.length > 0 && (
                 <>
                   <SectionHeader title="LEADERBOARD" />
-                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black">
+                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black shadow-2xl">
                     {leaderboard.entries.map((entry, i) => (
-                      <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
+                      <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black tracking-tighter ${i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
                           }`}>
-                          {i + 1}
+                          #{i + 1}
                         </div>
                         <GradientAvatar initials={entry.display_name[0] ?? "?"} size={36} />
                         <div className="flex-1 min-w-0 font-bold text-sm text-on-surface">{entry.display_name}</div>
@@ -565,25 +707,22 @@ export default function SocialPage() {
               {friends.length > 0 && (
                 <>
                   <Divider />
-                  <div className="flex items-center justify-between px-5 py-3 pr-3">
+                  <div className="py-2">
                     <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Your Friends</h2>
-                    <button
-                      onClick={() => setShowAddFriend(true)}
-                      className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-primary hover:border-primary/50 transition-colors"
-                      title="Add friend"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">person_add</span>
-                    </button>
                   </div>
                   <AnimatedList staggerMs={60} className="space-y-2">
                     {friends.map((f) => (
-                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors border border-transparent hover:border-white/[0.05]">
                         <GradientAvatar initials={f.display_name[0] ?? "?"} size={40} />
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm text-on-surface">{f.display_name}</div>
-                          <div className="text-xs text-muted">{f.total_xp} XP · {f.current_streak_days}d streak</div>
+                          <div className="text-xs text-muted flex items-center gap-2">
+                            <span>{f.total_xp} XP</span>
+                            <span className="w-1 h-1 rounded-full bg-muted/40" />
+                            <span>{f.current_streak_days}d streak</span>
+                          </div>
                         </div>
-                        <button onClick={() => handleUnfriend(f.id)} className="w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-error hover:bg-error/5 transition-colors" title="Unfriend">
+                        <button onClick={() => handleUnfriend(f.id)} className="w-9 h-9 rounded-full flex items-center justify-center text-muted/40 hover:text-error hover:bg-error/5 transition-colors" title="Unfriend">
                           <span className="material-symbols-outlined text-[18px]">person_remove</span>
                         </button>
                       </div>
@@ -594,13 +733,11 @@ export default function SocialPage() {
 
               {!leaderboard?.entries.length && !friends.length && (
                 <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
-                    <span className="material-symbols-outlined text-muted text-2xl">person_add</span>
+                  <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6 shadow-inner">
+                    <span className="material-symbols-outlined text-muted/50 text-3xl">person_add</span>
                   </div>
-                  <p className="text-muted text-sm">Add friends to see the leaderboard!</p>
-                  <button onClick={() => setShowAddFriend(true)} className="mt-3 px-5 py-2 rounded-full border border-primary text-primary text-sm font-bold hover:bg-primary/10">
-                    Add a friend
-                  </button>
+                  <h3 className="font-headline font-bold text-lg mb-2">Build Your Circle</h3>
+                  <p className="text-muted text-sm max-w-[240px]">Connect with friends to compare progress and stay motivated together.</p>
                 </div>
               )}
             </div>
@@ -611,32 +748,95 @@ export default function SocialPage() {
       {/* Add Friend Modal */}
       {showAddFriend && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowAddFriend(false); setFriendUserId(""); }} />
-          <div className="relative w-full max-w-sm bg-black border border-white/[0.1] rounded-3xl p-6 space-y-5 animate-slide-up">
-            <div className="flex items-center justify-between">
-              <h3 className="font-headline font-bold text-lg text-on-surface">Add Friend</h3>
-              <button
-                onClick={() => { setShowAddFriend(false); setFriendUserId(""); }}
-                className="w-8 h-8 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-on-surface transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => { setShowAddFriend(false); setSearchQuery(""); }} />
+          <div className="relative w-full max-w-sm bg-black border border-white/[0.1] rounded-[32px] overflow-hidden flex flex-col max-h-[80vh] animate-slide-up shadow-2xl">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-headline font-bold text-xl text-on-surface">Find Friends</h3>
+                <button
+                  onClick={() => { setShowAddFriend(false); setSearchQuery(""); }}
+                  className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-muted hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative group">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-muted text-lg group-focus-within:text-primary transition-colors">search</span>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  type="text"
+                  placeholder="Search by display name..."
+                  autoFocus
+                  className="w-full bg-white/[0.04] pl-11 pr-4 py-4 rounded-2xl border border-white/[0.05] focus:border-primary/50 focus:bg-white/[0.06] outline-none text-sm placeholder:text-muted/50 transition-all"
+                />
+              </div>
             </div>
-            <input
-              value={friendUserId}
-              onChange={(e) => setFriendUserId(e.target.value)}
-              type="text"
-              placeholder="Enter user ID"
-              autoFocus
-              className="w-full bg-surface-container p-4 rounded-2xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
-            />
-            <button
-              onClick={() => { handleSendFriendRequest(); setShowAddFriend(false); }}
-              disabled={!friendUserId.trim()}
-              className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
-            >
-              Send Request
-            </button>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-[100px]">
+              {isSearching ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <span className="material-symbols-outlined text-2xl text-primary animate-spin">progress_activity</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted font-bold">Searching...</span>
+                </div>
+              ) : searchQuery && searchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                  <span className="material-symbols-outlined text-3xl mb-2">person_search</span>
+                  <p className="text-xs">No users found for &quot;{searchQuery}&quot;</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {searchResults.map((user) => {
+                    const isFriend = friends.some(f => f.id === user.id);
+                    const isPendingSent = pendingSentRequests.some(r => r.to_user_id === user.id);
+                    const isPendingReceived = pendingReceivedRequests.some(r => r.from_user_id === user.id);
+                    const isSelf = currentUser?.id === user.id;
+
+                    return (
+                      <div key={user.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.05]">
+                        <GradientAvatar initials={user.display_name[0] ?? "?"} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-sm text-on-surface">{user.display_name}</h4>
+                          <p className="text-[10px] text-muted">{user.total_xp} XP</p>
+                        </div>
+
+                        {isSelf ? (
+                          <span className="px-3 py-1.5 rounded-full bg-white/[0.05] text-[10px] font-bold text-muted uppercase tracking-wider">You</span>
+                        ) : isFriend ? (
+                          <span className="px-3 py-1.5 rounded-full bg-primary/10 text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">check</span> Friends
+                          </span>
+                        ) : isPendingSent ? (
+                          <span className="px-3 py-1.5 rounded-full bg-secondary/10 text-[10px] font-bold text-secondary uppercase tracking-wider">Requested</span>
+                        ) : isPendingReceived ? (
+                          <button
+                            onClick={() => {
+                              const req = pendingReceivedRequests.find(r => r.from_user_id === user.id);
+                              if (req) void handleAcceptFriendRequest(req.id);
+                            }}
+                            className="px-4 py-2 rounded-full bg-primary text-on-primary text-[10px] font-black uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
+                          >
+                            Accept
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void handleSendFriendRequest(user.id)}
+                            className="w-10 h-10 rounded-full border border-primary/30 flex items-center justify-center text-primary hover:bg-primary hover:text-on-primary transition-all active:scale-90"
+                            title="Add friend"
+                          >
+                            <span className="material-symbols-outlined text-lg">person_add</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -27,7 +27,7 @@ export default function WealthTimelinePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.allSettled([
+    void Promise.allSettled([
       projections.wealthPath(20),
       projections.summary(),
     ]).then(([pathR, sumR]) => {

@@ -52,15 +52,15 @@ function getCtaLabel(card: Card): string {
 function getImpactLine(card: Card): string | null {
   const d = card.detail_json ?? {};
   if (typeof d.annual_savings === "number" && d.annual_savings > 0)
-    return `That's £${Math.round(d.annual_savings as number)} saved per year`;
-  if (typeof d.projected_10yr === "number" && (d.projected_10yr as number) > 0)
-    return `Worth £${Math.round(d.projected_10yr as number).toLocaleString()} over 10 years`;
-  if (typeof d.annual_cost === "number" && (d.annual_cost as number) > 0)
-    return `You spend £${Math.round(d.annual_cost as number).toLocaleString()} a year on this`;
-  if (typeof d.annual_hike === "number" && (d.annual_hike as number) > 0)
-    return `Price went up £${(d.annual_hike as number).toFixed(2)}/year`;
-  if (typeof d.pct_above === "number" && (d.pct_above as number) > 0)
-    return `${Math.round(d.pct_above as number)}% above your peer average`;
+    return `That's £${Math.round(d.annual_savings)} saved per year`;
+  if (typeof d.projected_10yr === "number" && d.projected_10yr > 0)
+    return `Worth £${Math.round(d.projected_10yr).toLocaleString()} over 10 years`;
+  if (typeof d.annual_cost === "number" && d.annual_cost > 0)
+    return `You spend £${Math.round(d.annual_cost).toLocaleString()} a year on this`;
+  if (typeof d.annual_hike === "number" && d.annual_hike > 0)
+    return `Price went up £${d.annual_hike.toFixed(2)}/year`;
+  if (typeof d.pct_above === "number" && d.pct_above > 0)
+    return `${Math.round(d.pct_above)}% above your peer average`;
   return null;
 }
 
@@ -318,9 +318,8 @@ export default function Home() {
 
     // Micro-learning: open the module instead of just dismissing
     const isMicroLearning = activeCard.card_type === "micro_learning" && direction === "right";
-    const moduleId = isMicroLearning
-      ? String(activeCard.detail_json?.module_id ?? activeCard.action_payload?.module_id ?? "")
-      : "";
+    const rawModuleId = activeCard.detail_json?.module_id ?? activeCard.action_payload?.module_id;
+    const moduleId = typeof rawModuleId === "string" ? rawModuleId : "";
 
     try {
       await cardsAPI.swipe(activeCard.id, direction);
@@ -339,7 +338,7 @@ export default function Home() {
 
     // Open module after removing card from deck
     if (isMicroLearning && moduleId) {
-      handleViewModule(moduleId);
+      void handleViewModule(moduleId);
     }
   };
 

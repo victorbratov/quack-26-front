@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --font-headline: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
-  --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-label: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-headline: var(--font-headline);
+  --font-serif: var(--font-serif);
+  --font-body: var(--font-body);
+  --font-label: var(--font-body);
 
   /* Dark Theme — Luxury Wellness */
   --color-background: #000000;

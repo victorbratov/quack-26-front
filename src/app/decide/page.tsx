@@ -43,14 +43,6 @@ const AGENT_COLORS: Record<string, string> = {
   mentor: "text-amber-400",
 };
 
-const AGENT_BG_COLORS: Record<string, string> = {
-  analyst: "bg-blue-400/10",
-  advocate: "bg-green-400/10",
-  critic: "bg-red-400/10",
-  behaviorist: "bg-purple-400/10",
-  mentor: "bg-amber-400/10",
-};
-
 // ─── Helpers for goal extraction ───
 function extractAmount(text: string): number | null {
   const match = /£([\d,]+(?:\.\d{2})?)/.exec(text);
@@ -142,7 +134,6 @@ export default function DecidePage() {
   const [streamState, setStreamState] = useState<string>("");
   const [agents, setAgents] = useState<AgentState[]>([]);
   const [mentorResponse, setMentorResponse] = useState<MentorResponse | null>(null);
-  const [isCompleted, setIsCompleted] = useState(false);
   const [templates, setTemplates] = useState<DecisionTemplate[]>([]);
   const [pastDecisions, setPastDecisions] = useState<DecisionSummary[]>([]);
   const [selectedDecision, setSelectedDecision] = useState<DecisionDetail | null>(null);
@@ -208,7 +199,6 @@ export default function DecidePage() {
     setStreamState("pipeline_started");
     setAgents([]);
     setMentorResponse(null);
-    setIsCompleted(false);
     setShowGoalSheet(false);
     setGoalCreated(false);
     setRelatedModules([]);
@@ -281,7 +271,6 @@ export default function DecidePage() {
                   setMentorResponse(event.content?.response as MentorResponse);
                   break;
                 case "pipeline_completed":
-                  setIsCompleted(true);
                   break;
               }
             } catch (e) { console.error("Parse err", e); }
