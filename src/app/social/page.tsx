@@ -1,233 +1,923 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { GradientAvatar } from "~/components/ui/GradientAvatar";
+import { Divider } from "~/components/ui/Divider";
+import { SectionHeader } from "~/components/ui/SectionHeader";
+import { SpotlightCard } from "~/components/ui/SpotlightCard";
+import { AnimatedList } from "~/components/ui/AnimatedList";
+import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
+import { social, squads as squadsAPI, challenges as challengesAPI, gamification, auth } from "~/lib/api";
+import type { FeedItem, Friend, Squad, Challenge, Leaderboard, ChallengeDetail, SquadDetail, AuthUser, FriendRequest, FeedReaction } from "~/lib/api";
+import { SquadChat } from "~/components/SquadChat";
 
-import Image from "next/image";
+type Tab = "Feed" | "Squads" | "Challenges" | "Friends";
+type SquadView = "members" | "chat";
 
-type SocialTab = "Feed" | "Squads" | "Challenges" | "Friends";
-
-const MOCK_FRIENDS = [
-  { id: 1, name: "Alex Chen", streak: 14, xp: 1240, avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuAysK48VKATKh8qSZFag4L43XyQrGaptykte6dASd4aQhUWaEZBdGR0syxbbiojV_bqEedpfc2xcMTuqnWwMJCn4rv1xqQRSufy6BP2CbI0FdqPLUjWs7Cp-ohcDsTIR5LHGxQsGAh67Il8370krh0YZ8iwIHehllVX5iqHQzi25lwMO0ilHDOWAfafo9Mk3glWRoalbqjw0dyZHmriZrbjWseIcxOS2Vw2mOnOrHl8Hsg3E3VF7EOku_xTP2oC3zglLsLbeVhD1ho" },
-  { id: 2, name: "Sarah Jenkins", streak: 5, xp: 820, avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuD_Xfa3rY2HAtAjXanltK3yPZQxHB8k_sjY9rLg8lgXeMP9BxzlZXIoBSJVZvW8p5ynLhjvg_lXjumUPSYj2vgAPYPUIREgkR7X2RNy7JQtkRkfft7dr6fa__L8gUZ4rOARPzjqV0W7hnuKmYzQe7efroOJ7nOSk3WumZxlVOcxuR0yoQIDk02wJYVPVE4qs3hr7MkaJps1KWbJciH-X2XYXGMStUGgSlq_OQbLxQW0oLKe1b1gccrG_O3jLei0nyrAFJN5QbcEFKM" },
-  { id: 3, name: "Jake Peralta", streak: 21, xp: 3400, avatar: "" },
-  { id: 4, name: "Emma Smith", streak: 2, xp: 150, avatar: "" }
-];
+const EVENT_ICONS: Record<string, string> = {
+  intent_cancelled: "block",
+  intent_accepted: "check_circle",
+  intent_vaulted: "savings",
+  streak_milestone: "local_fire_department",
+  challenge_joined: "flag",
+  challenge_completed: "emoji_events",
+  savings_milestone: "savings",
+  squad_joined: "group",
+  friend_added: "person_add",
+  goal_completed: "emoji_events",
+  module_completed: "school",
+};
 
 export default function SocialPage() {
-  const [activeTab, setActiveTab] = useState<SocialTab>("Feed");
-  const [feedFilter, setFeedFilter] = useState<"All" | "Friends">("Friends");
+  const [activeTab, setActiveTab] = useState<Tab>("Feed");
+  const [activeFilter, setActiveFilter] = useState<"All" | "Skipped" | "Bought" | "Vaulted">("All");
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [mySquads, setMySquads] = useState<Squad[]>([]);
+  const [activeChallenges, setActiveChallenges] = useState<Challenge[]>([]);
+  const [allChallenges, setAllChallenges] = useState<Challenge[]>([]);
+  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null);
+  const [pendingReceivedRequests, setPendingReceivedRequests] = useState<FriendRequest[]>([]);
+  const [pendingSentRequests, setPendingSentRequests] = useState<FriendRequest[]>([]);
+  const [searchResults, setSearchResults] = useState<Friend[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [inviteCode, setInviteCode] = useState("");
+  const [squadName, setSquadName] = useState("");
+  const [selectedChallenge, setSelectedChallenge] = useState<ChallengeDetail | null>(null);
+  const [selectedSquad, setSelectedSquad] = useState<SquadDetail | null>(null);
+  const [showAddFriend, setShowAddFriend] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [squadView, setSquadView] = useState<SquadView>("members");
+  const [loading, setLoading] = useState(true);
+  // Independent state for optimistic updates: itemId -> emoji -> { active: boolean, count: number }
+  const [optimisticReactions, setOptimisticReactions] = useState<Record<string, Record<string, { active: boolean, count: number }>>>({});
+
+  useEffect(() => {
+    void Promise.allSettled([
+      social.feed(),
+      social.friends(),
+      squadsAPI.list(),
+      challengesAPI.active(),
+      challengesAPI.list(),
+      gamification.leaderboard(),
+      auth.me(),
+    ]).then(([feedR, friendsR, squadsR, activeChR, allChR, lbR, meR]) => {
+      const activeUser = meR.status === "fulfilled" ? meR.value : null;
+      if (meR.status === "fulfilled") setCurrentUser(activeUser);
+
+      if (feedR.status === "fulfilled") {
+        setFeed(feedR.value);
+        
+        // Initialize the independent reaction states
+        const initialMap: Record<string, Record<string, { active: boolean, count: number }>> = {};
+        feedR.value.forEach(item => {
+          initialMap[item.id] = {};
+          ["🔥", "🎉", "❤️"].forEach(emoji => {
+            const reactions = item.reactions ?? [];
+            const count = reactions.filter(r => r.emoji === emoji).length;
+            const active = activeUser ? reactions.some(r => r.emoji === emoji && String(r.user_id) === String(activeUser.id)) : false;
+            initialMap[item.id]![emoji] = { active, count };
+          });
+        });
+        setOptimisticReactions(initialMap);
+      }
+      if (friendsR.status === "fulfilled") setFriends(friendsR.value);
+      if (squadsR.status === "fulfilled") setMySquads(squadsR.value);
+      if (activeChR.status === "fulfilled") setActiveChallenges(activeChR.value);
+      if (allChR.status === "fulfilled") setAllChallenges(allChR.value);
+      if (lbR.status === "fulfilled") setLeaderboard(lbR.value);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "Friends") {
+      void Promise.allSettled([
+        social.listRequests("received"),
+        social.listRequests("sent"),
+      ]).then(([receivedR, sentR]) => {
+        if (receivedR.status === "fulfilled") setPendingReceivedRequests(receivedR.value);
+        if (sentR.status === "fulfilled") setPendingSentRequests(sentR.value);
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void (async () => {
+        setIsSearching(true);
+        try {
+          const results = await social.searchUsers(searchQuery.trim());
+          setSearchResults(results);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsSearching(false);
+        }
+      })();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleAcceptFriendRequest = async (id: string) => {
+    try {
+      await social.acceptRequest(id);
+      setPendingReceivedRequests((prev) => prev.filter((r) => r.id !== id));
+      // Refresh friends list
+      const updatedFriends = await social.friends();
+      setFriends(updatedFriends);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleRejectFriendRequest = async (id: string, direction: "received" | "sent") => {
+    try {
+      if (direction === "received") {
+        await social.rejectRequest(id);
+        setPendingReceivedRequests((prev) => prev.filter((r) => r.id !== id));
+      } else {
+        // For sent requests, rejecting usually means cancelling
+        // The API summary mentioned rejectRequest(requestId)
+        await social.rejectRequest(id);
+        setPendingSentRequests((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleSendFriendRequest = async (userId: string) => {
+    try {
+      await social.sendRequest(userId);
+      // Refresh sent requests
+      const updatedSent = await social.listRequests("sent");
+      setPendingSentRequests(updatedSent);
+    } catch (e) {
+      console.error("Failed to send friend request:", e);
+      // Optional: you could set a local error state here to show a toast/message to the user
+    }
+  };
+
+  const handleToggleReaction = async (itemId: string, emoji: string) => {
+    if (!currentUser) return;
+
+    // 1. Snapshot current state for potential revert
+    const prevState = optimisticReactions[itemId]?.[emoji] ?? { active: false, count: 0 };
+    
+    // 2. Immediate Optimistic Update (Track BOTH state and counter yourself)
+    const nextActive = !prevState.active;
+    const nextCount = Math.max(0, prevState.count + (nextActive ? 1 : -1));
+
+    setOptimisticReactions(prev => ({
+      ...prev,
+      [itemId]: {
+        ...(prev[itemId] ?? {}),
+        [emoji]: { active: nextActive, count: nextCount }
+      }
+    }));
+
+    try {
+      // 3. Send request but DO NOT override local state with server response
+      // This prevents the "reset" flash for both the icon and the counter.
+      await social.toggleReaction(itemId, emoji);
+      
+      // Success: local state is already correct.
+    } catch (e) {
+      console.error("Reaction failed:", e);
+      // 4. Revert only this specific emoji on failure
+      setOptimisticReactions(prev => ({
+        ...prev,
+        [itemId]: {
+          ...(prev[itemId] ?? {}),
+          [emoji]: prevState
+        }
+      }));
+    }
+  };
+
+  const handleJoinSquad = async () => {
+    if (!inviteCode) return;
+    try {
+      const squad = await squadsAPI.join(inviteCode);
+      setMySquads((prev) => [...prev, squad]);
+      setInviteCode("");
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCreateSquad = async () => {
+    if (!squadName) return;
+    try {
+      const squad = await squadsAPI.create(squadName);
+      setMySquads((prev) => [...prev, squad]);
+      setSquadName("");
+    } catch (e) { console.error(e); }
+  };
+
+  const handleLeaveSquad = async (id: string) => {
+    try {
+      await squadsAPI.leave(id);
+      setMySquads((prev) => prev.filter((s) => s.id !== id));
+      if (selectedSquad?.id === id) setSelectedSquad(null);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleViewSquad = async (id: string) => {
+    try {
+      const detail = await squadsAPI.get(id);
+      setSelectedSquad(detail);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleUnfriend = async (userId: string) => {
+    try {
+      await social.unfriend(userId);
+      setFriends((prev) => prev.filter((f) => f.id !== userId));
+    } catch (e) { console.error(e); }
+  };
+
+  const handleViewChallenge = async (id: string) => {
+    try {
+      const detail = await challengesAPI.get(id);
+      setSelectedChallenge(detail);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleJoinChallenge = async (id: string) => {
+    try {
+      await challengesAPI.join(id);
+      setActiveChallenges((prev) => [...prev, ...allChallenges.filter((c) => c.id === id)]);
+    } catch (e) { console.error(e); }
+  };
+
+  // Filter feed items before grouping
+  const filteredFeed = feed.filter((item) => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Skipped") return item.event_type === "intent_cancelled";
+    if (activeFilter === "Bought") return item.event_type === "intent_accepted";
+    if (activeFilter === "Vaulted") return item.event_type === "intent_vaulted";
+    return true;
+  });
+
+  // Group feed items by date
+  const groupedFeed = filteredFeed.reduce<Record<string, FeedItem[]>>((acc, item) => {
+    const date = new Date(item.created_at);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    let label: string;
+    if (date.toDateString() === today.toDateString()) label = "Today";
+    else if (date.toDateString() === yesterday.toDateString()) label = "Yesterday";
+    else label = date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+
+    acc[label] ??= [];
+    acc[label]!.push(item);
+    return acc;
+  }, {});
 
   return (
-    <div className="mx-auto max-w-lg px-6 pt-12 pb-32 min-h-screen bg-black text-on-background font-body space-y-8">
-      
+    <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body">
+      {/* Header */}
+      <div className="px-5 md:px-8 pt-10 pb-4">
+        <h1 className="text-3xl md:text-4xl font-headline font-extrabold text-primary">COMMUNITY</h1>
+      </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 overflow-x-auto px-5 md:px-8 pb-4 scrollbar-hide">
+        {(["Feed", "Squads", "Challenges", "Friends"] as Tab[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => { setActiveTab(tab); setSelectedSquad(null); setSelectedChallenge(null); }}
+            className={`whitespace-nowrap px-5 py-2.5 rounded-full font-medium text-sm transition-all border ${activeTab === tab ? "bg-primary text-on-primary border-primary" : "bg-transparent text-muted border-outline-variant hover:border-outline"
+              }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-      <section className="space-y-4">
-        <h1 className="text-4xl font-headline font-bold text-primary">COMMUNITY</h1>
-      </section>
-
-      {/* Horizontal Scrollable Tabs */}
-      <section className="sticky top-4 z-10 bg-black/80 backdrop-blur-md py-4 -mx-6 px-6">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {(["Feed", "Squads", "Challenges", "Friends"] as SocialTab[]).map(chip => (
-            <button
-              key={chip}
-              onClick={() => setActiveTab(chip)}
-              className={`whitespace-nowrap px-5 py-2.5 rounded-full font-bold text-sm transition-all border ${activeTab === chip ? "bg-primary text-black border-primary" : "bg-transparent text-outline border-outline-variant hover:border-outline"}`}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* TAB CONTENT */}
-      <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        
-        {/* FEED */}
-        {activeTab === "Feed" && (
-          <div className="space-y-6">
-            <div className="flex gap-4 border-b border-outline-variant pb-2">
-              <button onClick={() => setFeedFilter("Friends")} className={`pb-2 font-bold uppercase tracking-widest text-xs transition-colors border-b-2 ${feedFilter === "Friends" ? "border-primary text-primary" : "border-transparent text-outline"}`}>Friends</button>
-              <button onClick={() => setFeedFilter("All")} className={`pb-2 font-bold uppercase tracking-widest text-xs transition-colors border-b-2 ${feedFilter === "All" ? "border-primary text-primary" : "border-transparent text-outline"}`}>Global</button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Intent Cancelled */}
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full border-2 border-surface relative overflow-hidden bg-surface-container shrink-0">
-                  <Image src={MOCK_FRIENDS[0]!.avatar} alt="Avatar" fill className="object-cover" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <p className="text-on-surface"><strong>Alex Chen</strong> cancelled a <strong className="text-emerald-400">£60</strong> impulse at Zara.</p>
-                  <p className="text-xs text-outline">2 hours ago</p>
-                </div>
-                <button className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-primary/20 hover:text-primary flex items-center justify-center transition-colors">
-                  <span className="material-symbols-outlined text-sm">favorite</span>
-                </button>
+      {loading ? (
+        <div className="flex items-center justify-center py-20"><span className="material-symbols-outlined text-3xl text-muted animate-spin">progress_activity</span></div>
+      ) : (
+        <section>
+          {/* ─── FEED ─── */}
+          {activeTab === "Feed" && (
+            <div className="px-5 md:px-8">
+              {/* Filter Row */}
+              <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
+                {(["All", "Skipped", "Bought", "Vaulted"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setActiveFilter(f)}
+                    className={`px-3 py-1.5 rounded-sm text-[10px] uppercase font-black tracking-widest transition-all border flex flex-col items-center gap-0.5 min-w-[70px] ${
+                      activeFilter === f
+                        ? "bg-primary/10 text-primary border-primary/50 shadow-inner"
+                        : "bg-surface-container/20 text-muted/60 border-white/[0.03] hover:border-white/[0.1] hover:bg-surface-container/40"
+                    }`}
+                  >
+                    <span className="opacity-80 leading-none">{f}</span>
+                    {activeFilter === f && (
+                      <div className="h-0.5 w-4 bg-primary rounded-full mt-0.5" />
+                    )}
+                  </button>
+                ))}
               </div>
 
-              {/* Streak Milestone */}
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full border-2 border-surface relative overflow-hidden bg-surface-container shrink-0">
-                  <Image src={MOCK_FRIENDS[1]!.avatar} alt="Avatar" fill className="object-cover" />
-                </div>
-                <div className="flex-1 space-y-1">
-                  <p className="text-on-surface"><strong>Sarah Jenkins</strong> hit a <strong className="text-secondary">14-day tracking streak 🔥</strong></p>
-                  <p className="text-xs text-outline">5 hours ago</p>
-                </div>
-                <button className="w-8 h-8 rounded-full bg-surface-container-high hover:bg-primary/20 hover:text-primary flex items-center justify-center transition-colors">
-                  <span className="material-symbols-outlined text-sm">front_hand</span>
-                </button>
-              </div>
-
-              {/* Joined Challenge */}
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full border-2 border-surface relative flex items-center justify-center bg-emerald-400/20 text-emerald-400 shrink-0 font-bold">
-                  JP
-                </div>
-                <div className="flex-1 space-y-1">
-                  <p className="text-on-surface"><strong>Jake Peralta</strong> joined the <strong>No-Spend Weekend</strong> challenge.</p>
-                  <div className="mt-2 p-3 bg-surface border border-outline-variant rounded-xl flex items-center justify-between">
-                    <span className="text-xs uppercase font-bold tracking-widest text-outline">No-Spend Weekend</span>
-                    <button className="text-xs font-bold text-primary">Join</button>
+              {filteredFeed.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">filter_list_off</span>
                   </div>
-                  <p className="text-xs text-outline pt-2">Yesterday</p>
+                  <p className="text-muted text-sm">No items match this filter.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {Object.entries(groupedFeed).map(([dateLabel, items]) => (
+                    <div key={dateLabel}>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">{dateLabel}</div>
+                      <AnimatedList staggerMs={50} className="space-y-0">
+                        {items.map((item, idx) => {
+                          const isVaulted = item.event_type === "intent_vaulted";
+                          return (
+                            <div key={item.id}>
+                              <div className={`flex items-start gap-3 py-4 px-3 rounded-2xl transition-all ${isVaulted ? "bg-secondary/5 border border-secondary/10" : ""}`}>
+                                <GradientAvatar initials={item.display_name?.[0] ?? "?"} seed={item.display_name ?? "user"} size={38} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-on-surface leading-snug">
+                                    <span className="font-bold">{item.display_name}</span>{" "}
+                                    {isVaulted ? (
+                                      <span className="text-secondary font-medium">{item.message.replace(item.display_name ?? "", "").trim()}</span>
+                                    ) : (
+                                      item.message.replace(item.display_name ?? "", "").trim()
+                                    )}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <p className="text-[11px] text-muted-foreground">
+                                      {new Date(item.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                    </p>
+                                    {isVaulted && (
+                                      <span className="text-[9px] font-bold uppercase tracking-tighter bg-secondary/20 text-secondary px-1.5 py-0.5 rounded">Vaulted</span>
+                                    )}
+
+                                    {/* Reactions Bar */}
+                                    <div className="flex items-center gap-1.5 ml-auto">
+                                      {["🔥", "🎉", "❤️"].map((emoji) => {
+                                        const state = optimisticReactions[item.id]?.[emoji] ?? { active: false, count: 0 };
+                                        
+                                        return (
+                                          <button
+                                            key={emoji}
+                                            onClick={() => void handleToggleReaction(item.id, emoji)}
+                                            className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold transition-all active:scale-90 ${
+                                              state.active 
+                                                ? "bg-primary/20 border-primary/40 text-primary shadow-[0_0_10px_rgba(230,221,197,0.1)]" 
+                                                : "bg-white/[0.03] border-white/[0.05] text-muted-foreground hover:bg-white/[0.08] hover:border-white/[0.1]"
+                                            }`}
+                                          >
+                                            <span>{emoji}</span>
+                                            {state.count > 0 && <span>{state.count}</span>}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isVaulted ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"}`}>
+                                  <span className="material-symbols-outlined text-[16px]">
+                                    {EVENT_ICONS[item.event_type] ?? "notifications"}
+                                  </span>
+                                </div>
+                              </div>
+                              {idx < items.length - 1 && !isVaulted && <div className="h-px bg-white/[0.04] ml-[50px]" />}
+                            </div>
+                          );
+                        })}
+                      </AnimatedList>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── SQUADS ─── */}
+          {activeTab === "Squads" && !selectedSquad && (
+            <div className="px-5 md:px-8 space-y-4">
+              <SectionHeader title="YOUR SQUADS" />
+
+              {mySquads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">group_add</span>
+                  </div>
+                  <p className="text-muted text-sm">No squads yet. Create one or join with a code!</p>
+                </div>
+              ) : (
+                <AnimatedList staggerMs={80} className="space-y-3">
+                  {mySquads.map((squad) => (
+                    <SpotlightCard
+                      key={squad.id}
+                      className="p-5 cursor-pointer"
+                      onClick={() => handleViewSquad(squad.id)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-secondary/20 to-primary/10 flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-secondary text-xl">group</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-headline font-bold text-base text-on-surface">{squad.name}</h3>
+                          <p className="text-xs text-muted mt-0.5">{squad.member_count} members</p>
+                        </div>
+                        <span className="material-symbols-outlined text-muted text-lg">chevron_right</span>
+                      </div>
+                    </SpotlightCard>
+                  ))}
+                </AnimatedList>
+              )}
+
+              <Divider className="mt-2" />
+              <SectionHeader title="JOIN OR CREATE" />
+
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    value={squadName}
+                    onChange={(e) => setSquadName(e.target.value)}
+                    type="text"
+                    placeholder="New squad name"
+                    className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={handleCreateSquad}
+                    disabled={!squadName}
+                    className="w-28 rounded-full bg-primary text-on-primary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
+                  >
+                    Create
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    type="text"
+                    placeholder="Enter invite code"
+                    className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground"
+                  />
+                  <button
+                    onClick={handleJoinSquad}
+                    disabled={!inviteCode}
+                    className="w-28 rounded-full bg-secondary text-on-secondary font-bold text-sm hover:opacity-90 disabled:opacity-40 transition-all"
+                  >
+                    Join
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* SQUADS */}
-        {activeTab === "Squads" && (
-          <div className="space-y-4">
-            <button className="w-full p-5 rounded-3xl border border-dashed border-outline text-outline font-bold flex items-center justify-center gap-2 hover:bg-surface-container transition-colors mb-4">
-              <span className="material-symbols-outlined">add</span>
-              Create a Squad
-            </button>
+          {/* ─── SQUAD DETAIL ─── */}
+          {activeTab === "Squads" && selectedSquad && (
+            <div className="px-5 md:px-8 space-y-5">
+              {/* Back button */}
+              <button onClick={() => setSelectedSquad(null)} className="flex items-center gap-1 text-sm text-muted hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                All Squads
+              </button>
 
-            <div className="bg-surface p-6 rounded-3xl border border-primary/30 relative overflow-hidden group hover:border-primary transition-colors cursor-pointer">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-bl-[100px] transition-transform group-hover:scale-110"></div>
-              <div className="relative z-10">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="font-headline font-bold text-2xl text-on-surface">UCL Savers</h3>
-                    <p className="text-outline text-sm">Private · 12 Members</p>
-                  </div>
-                  <div className="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase">
-                    Rank #4
-                  </div>
+              {/* Squad header */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-secondary/30 to-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-secondary text-3xl">group</span>
                 </div>
-                
-                <div className="flex -space-x-3 mb-6">
-                  <div className="w-10 h-10 rounded-full border-2 border-surface relative overflow-hidden bg-surface-container"><Image src={MOCK_FRIENDS[0]!.avatar} alt="" fill className="object-cover"/></div>
-                  <div className="w-10 h-10 rounded-full border-2 border-surface relative overflow-hidden bg-surface-container"><Image src={MOCK_FRIENDS[1]!.avatar} alt="" fill className="object-cover"/></div>
-                  <div className="w-10 h-10 rounded-full border-2 border-surface relative flex items-center justify-center bg-emerald-400/20 text-emerald-400 font-bold text-xs">JP</div>
-                  <div className="w-10 h-10 rounded-full border-2 border-surface flex items-center justify-center bg-surface-container-high text-xs font-bold">+9</div>
-                </div>
-
-                <div className="pt-4 border-t border-outline-variant">
-                  <div className="text-xs uppercase font-bold tracking-widest text-outline mb-2">Active Squad Challenge</div>
-                  <div className="flex justify-between items-center text-sm font-bold text-on-surface">
-                    <span>£500 Collective Savings</span>
-                    <span className="text-primary">£340 / £500</span>
-                  </div>
-                  <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden mt-2">
-                    <div className="h-full bg-primary" style={{ width: '68%' }}></div>
-                  </div>
+                <div className="flex-1">
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">{selectedSquad.name}</h2>
+                  <p className="text-sm text-muted">{selectedSquad.member_count} members</p>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <input type="text" placeholder="Squad Invite Code" className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-outline" />
-              <button className="px-6 rounded-full bg-primary text-black font-bold text-sm hover:opacity-90">Join</button>
-            </div>
-          </div>
-        )}
 
-        {/* CHALLENGES */}
-        {activeTab === "Challenges" && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-xs uppercase font-bold tracking-widest text-outline mb-4">Active</h3>
-              <div className="bg-gradient-to-br from-secondary/20 to-surface border border-secondary/30 p-6 rounded-3xl relative overflow-hidden">
-                <div className="flex items-center gap-3 text-secondary mb-4">
-                  <span className="material-symbols-outlined text-3xl">local_cafe</span>
-                  <h4 className="font-headline font-bold text-xl text-on-surface">No-Coffee Week</h4>
-                </div>
-                <p className="text-outline text-sm mb-6 max-w-[80%]">Skip buying coffee out for 7 days. Make it at home.</p>
-                <div className="flex justify-between text-xs font-bold uppercase tracking-widest mb-2 text-on-surface">
-                  <span>Day 4 of 7</span>
-                  <span className="text-secondary">+500 XP</span>
-                </div>
-                <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden mb-4">
-                  <div className="h-full bg-secondary" style={{ width: '57%' }}></div>
-                </div>
+              {/* View toggle */}
+              <div className="flex p-1 bg-surface-container rounded-full border border-outline-variant">
+                {(["members", "chat"] as SquadView[]).map((view) => (
+                  <button
+                    key={view}
+                    onClick={() => setSquadView(view)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all ${squadView === view ? "bg-surface-container-high text-primary shadow-sm" : "text-muted hover:text-on-surface"
+                      }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">{view === "members" ? "group" : "forum"}</span>
+                    {view}
+                  </button>
+                ))}
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-xs uppercase font-bold tracking-widest text-outline mb-4">Discover</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-surface border border-outline-variant p-5 rounded-2xl flex flex-col justify-between aspect-square hover:border-emerald-400 group cursor-pointer transition-colors">
-                  <span className="material-symbols-outlined text-emerald-400 text-3xl group-hover:scale-110 transition-transform">restaurant</span>
-                  <div>
-                    <h5 className="font-bold text-on-surface text-lg leading-tight mb-1">Cook at Home</h5>
-                    <div className="text-xs text-outline font-bold">14 Days</div>
-                  </div>
-                </div>
-                <div className="bg-surface border border-outline-variant p-5 rounded-2xl flex flex-col justify-between aspect-square hover:border-primary group cursor-pointer transition-colors">
-                  <span className="material-symbols-outlined text-primary text-3xl group-hover:scale-110 transition-transform">directions_walk</span>
-                  <div>
-                    <h5 className="font-bold text-on-surface text-lg leading-tight mb-1">Walk to Work</h5>
-                    <div className="text-xs text-outline font-bold">5 Days</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+              {squadView === "chat" ? (
+                <SquadChat squadId={selectedSquad.id} currentUserId={currentUser?.id} />
+              ) : (
+                <>
+                  {/* Invite code */}
+                  <SpotlightCard className="p-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-muted">Invite Code</div>
+                      <div className="font-mono font-bold text-lg text-primary mt-0.5">{selectedSquad.invite_code}</div>
+                    </div>
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(selectedSquad.invite_code)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full border border-outline-variant text-sm text-muted hover:text-on-surface hover:border-outline transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">content_copy</span>
+                      Copy
+                    </button>
+                  </SpotlightCard>
 
-        {/* FRIENDS */}
-        {activeTab === "Friends" && (
-          <div className="space-y-6">
-            <div className="flex gap-2">
-              <input type="text" placeholder="Search by email or username" className="flex-1 bg-surface-container p-4 rounded-full border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-outline" />
-              <button className="w-14 h-14 rounded-full bg-primary text-black flex items-center justify-center hover:opacity-90">
-                <span className="material-symbols-outlined">person_add</span>
+                  <Divider />
+
+                  {/* Members */}
+                  <SectionHeader title="MEMBERS" />
+                  <AnimatedList staggerMs={80} className="space-y-2">
+                    {selectedSquad.members.map((member, i) => (
+                      <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                        <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
+                        <GradientAvatar initials={member.display_name[0] ?? "?"} seed={member.display_name} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-on-surface">{member.display_name}</div>
+                          <div className="text-xs text-muted">{member.total_xp} XP</div>
+                        </div>
+                        <div className="flex items-center gap-1 text-secondary text-sm font-bold">
+                          <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                          {member.current_streak_days}
+                        </div>
+                      </div>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
+
+              <Divider />
+
+              {/* Leave squad */}
+              <button
+                onClick={() => handleLeaveSquad(selectedSquad.id)}
+                className="w-full py-3 rounded-full border border-error/30 text-error text-sm font-bold hover:bg-error/5 transition-colors"
+              >
+                Leave Squad
               </button>
             </div>
+          )}
 
-            <div className="space-y-0 text-on-surface border border-outline-variant rounded-3xl overflow-hidden bg-surface">
-              {MOCK_FRIENDS.sort((a,b) => b.xp - a.xp).map((friend, i) => (
-                <div key={friend.id} className="p-4 flex items-center justify-between border-b border-outline-variant last:border-b-0 hover:bg-surface-container transition-colors cursor-pointer">
-                  <div className="flex items-center gap-4">
-                    <div className="w-6 text-center text-outline font-bold text-sm">{i + 1}</div>
-                    <div className="w-10 h-10 rounded-full border-2 border-surface relative overflow-hidden bg-surface-container-high flex items-center justify-center font-bold text-xs">
-                      {friend.avatar ? (
-                        <Image src={friend.avatar} alt={friend.name} fill className="object-cover" />
-                      ) : (
-                        friend.name.split(' ').map(n => n[0]).join('')
-                      )}
-                    </div>
-                    <div className="font-bold">{friend.name}</div>
+          {/* ─── CHALLENGES ─── */}
+          {activeTab === "Challenges" && !selectedChallenge && (
+            <div className="px-5 md:px-8 space-y-5">
+              {activeChallenges.length > 0 && (
+                <>
+                  <SectionHeader title="ACTIVE" />
+                  <AnimatedList staggerMs={80} className="space-y-3">
+                    {activeChallenges.map((ch) => (
+                      <SpotlightCard key={ch.id} className="p-5 cursor-pointer" onClick={() => handleViewChallenge(ch.id)}>
+                        <div className="flex items-start gap-4">
+                          <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-primary">flag</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-headline font-bold text-base text-on-surface">{ch.title}</h4>
+                            <p className="text-xs text-muted mt-1 line-clamp-1">{ch.description}</p>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-muted">
+                              <span className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-xs">group</span>
+                                {ch.participant_count}
+                              </span>
+                              <span>{ch.start_date} → {ch.end_date}</span>
+                            </div>
+                          </div>
+                          <span className="material-symbols-outlined text-muted text-lg mt-1">chevron_right</span>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
+
+              {(() => {
+                const discoverable = allChallenges.filter((c) => !activeChallenges.find((a) => a.id === c.id));
+                return discoverable.length > 0 ? (
+                  <>
+                    <Divider />
+                    <SectionHeader title="DISCOVER" />
+                    <AnimatedList staggerMs={80} className="space-y-3">
+                      {discoverable.map((ch) => (
+                        <SpotlightCard key={ch.id} className="p-5 flex items-center justify-between">
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="w-11 h-11 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-muted">flag</span>
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-sm text-on-surface">{ch.title}</h4>
+                              <p className="text-xs text-muted mt-0.5">{ch.participant_count} participants</p>
+                            </div>
+                          </div>
+                          <button onClick={(e) => { e.stopPropagation(); void handleJoinChallenge(ch.id); }} className="px-4 py-2 rounded-full border border-primary text-primary text-xs font-bold hover:bg-primary/10 shrink-0 ml-3">Join</button>
+                        </SpotlightCard>
+                      ))}
+                    </AnimatedList>
+                  </>
+                ) : null;
+              })()}
+
+              {activeChallenges.length === 0 && allChallenges.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-14 h-14 rounded-full bg-surface-container-high flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-muted text-2xl">flag</span>
                   </div>
-                  <div className="flex items-center gap-4 text-right">
-                    <div className="flex items-center gap-1 text-secondary text-sm font-bold">
-                      <span className="material-symbols-outlined text-sm">local_fire_department</span>
-                      {friend.streak}
-                    </div>
-                    <div className="text-xs text-outline w-12">{friend.xp} XP</div>
-                  </div>
+                  <p className="text-muted text-sm">No challenges available yet.</p>
                 </div>
-              ))}
+              )}
+            </div>
+          )}
+
+          {/* ─── CHALLENGE DETAIL ─── */}
+          {activeTab === "Challenges" && selectedChallenge && (
+            <div className="px-5 md:px-8 space-y-5">
+              <button onClick={() => setSelectedChallenge(null)} className="flex items-center gap-1 text-sm text-muted hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined text-lg">arrow_back</span>
+                All Challenges
+              </button>
+
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-primary text-2xl">flag</span>
+                </div>
+                <div>
+                  <h2 className="font-headline font-bold text-2xl text-on-surface">{selectedChallenge.title}</h2>
+                  <p className="text-sm text-muted mt-0.5">{selectedChallenge.start_date} → {selectedChallenge.end_date}</p>
+                </div>
+              </div>
+
+              {selectedChallenge.description && (
+                <p className="text-sm text-muted leading-relaxed">{selectedChallenge.description}</p>
+              )}
+
+              <Divider />
+              <SectionHeader title={`PARTICIPANTS (${selectedChallenge.participants.length})`} />
+
+              <AnimatedList staggerMs={60} className="space-y-2">
+                {selectedChallenge.participants.map((p) => (
+                  <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
+                    <GradientAvatar initials={p.display_name[0] ?? "?"} seed={p.display_name} size={38} />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
+                    </div>
+                    <span className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${p.status === "completed" ? "bg-primary/15 text-primary" : "bg-secondary/15 text-secondary"}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                ))}
+              </AnimatedList>
+            </div>
+          )}
+
+          {/* ─── FRIENDS ─── */}
+          {activeTab === "Friends" && (
+            <div className="px-5 md:px-8 space-y-6">
+              {/* Find Friends Button (Always at top) */}
+              <div className="pt-2">
+                <button
+                  onClick={() => { setShowAddFriend(true); setSearchResults([]); setSearchQuery(""); }}
+                  className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-primary/30 bg-primary/5 text-primary text-sm font-bold hover:bg-primary/10 transition-all active:scale-[0.98] shadow-sm"
+                >
+                  <span className="material-symbols-outlined text-xl">person_add</span>
+                  Find Someone to Follow
+                </button>
+              </div>
+
+              {/* Pending Received Requests */}
+              {pendingReceivedRequests.length > 0 && (
+                <>
+                  <SectionHeader title="RECEIVED REQUESTS" />
+                  <div className="space-y-3">
+                    {pendingReceivedRequests.map((req) => (
+                      <SpotlightCard key={req.id} className="p-4">
+                        <div className="flex items-center gap-4">
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} seed={req.display_name ?? "user"} size={40} />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
+                            <p className="text-[11px] text-muted">Sent you a friend request</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => void handleAcceptFriendRequest(req.id)}
+                              className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center hover:bg-primary/30 transition-colors"
+                              title="Accept"
+                            >
+                              <span className="material-symbols-outlined text-lg">check</span>
+                            </button>
+                            <button
+                              onClick={() => void handleRejectFriendRequest(req.id, "received")}
+                              className="w-9 h-9 rounded-full bg-white/[0.05] text-muted flex items-center justify-center hover:bg-white/[0.1] transition-colors"
+                              title="Decline"
+                            >
+                              <span className="material-symbols-outlined text-lg">close</span>
+                            </button>
+                          </div>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Pending Sent Requests */}
+              {pendingSentRequests.length > 0 && (
+                <>
+                  <SectionHeader title="SENT REQUESTS" />
+                  <div className="space-y-3">
+                    {pendingSentRequests.map((req) => (
+                      <SpotlightCard key={req.id} className="p-4">
+                        <div className="flex items-center gap-4 opacity-70">
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} seed={req.display_name ?? "user"} size={40} />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
+                            <p className="text-[11px] text-muted">Awaiting response</p>
+                          </div>
+                          <button
+                            onClick={() => void handleRejectFriendRequest(req.id, "sent")}
+                            className="w-9 h-9 rounded-full bg-white/[0.05] text-muted flex items-center justify-center hover:bg-white/[0.1] transition-colors"
+                            title="Cancel Request"
+                          >
+                            <span className="material-symbols-outlined text-lg">close</span>
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Leaderboard */}
+              {leaderboard && leaderboard.entries.length > 0 && (
+                <>
+                  <SectionHeader title="LEADERBOARD" />
+                  <div className="rounded-2xl border border-outline-variant overflow-hidden bg-black shadow-2xl">
+                    {leaderboard.entries.map((entry, i) => (
+                      <div key={entry.user_id} className="flex items-center gap-3 p-4 border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black tracking-tighter ${i === 0 ? "bg-primary/20 text-primary" : i === 1 ? "bg-secondary/20 text-secondary" : "bg-white/[0.04] text-muted"
+                          }`}>
+                          #{i + 1}
+                        </div>
+                        <GradientAvatar initials={entry.display_name[0] ?? "?"} seed={entry.display_name} size={36} />
+                        <div className="flex-1 min-w-0 font-bold text-sm text-on-surface">{entry.display_name}</div>
+                        <div className="flex items-center gap-3 text-right">
+                          <div className="flex items-center gap-1 text-secondary text-sm font-bold">
+                            <span className="material-symbols-outlined text-sm">local_fire_department</span>
+                            <AnimatedCounter value={entry.current_streak_days} />
+                          </div>
+                          <div className="text-xs text-muted w-16 text-right">
+                            <AnimatedCounter value={entry.total_xp} /> XP
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Friends list */}
+              {friends.length > 0 && (
+                <>
+                  <Divider />
+                  <div className="py-2">
+                    <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Your Friends</h2>
+                  </div>
+                  <AnimatedList staggerMs={60} className="space-y-2">
+                    {friends.map((f) => (
+                      <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors border border-transparent hover:border-white/[0.05]">
+                        <GradientAvatar initials={f.display_name[0] ?? "?"} seed={f.display_name} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-on-surface">{f.display_name}</div>
+                          <div className="text-xs text-muted flex items-center gap-2">
+                            <span>{f.total_xp} XP</span>
+                            <span className="w-1 h-1 rounded-full bg-muted/40" />
+                            <span>{f.current_streak_days}d streak</span>
+                          </div>
+                        </div>
+                        <button onClick={() => handleUnfriend(f.id)} className="w-9 h-9 rounded-full flex items-center justify-center text-muted/40 hover:text-error hover:bg-error/5 transition-colors" title="Unfriend">
+                          <span className="material-symbols-outlined text-[18px]">person_remove</span>
+                        </button>
+                      </div>
+                    ))}
+                  </AnimatedList>
+                </>
+              )}
+
+              {!leaderboard?.entries.length && !friends.length && (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6 shadow-inner">
+                    <span className="material-symbols-outlined text-muted/50 text-3xl">person_add</span>
+                  </div>
+                  <h3 className="font-headline font-bold text-lg mb-2">Build Your Circle</h3>
+                  <p className="text-muted text-sm max-w-[240px]">Connect with friends to compare progress and stay motivated together.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Add Friend Modal */}
+      {showAddFriend && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => { setShowAddFriend(false); setSearchQuery(""); }} />
+          <div className="relative w-full max-w-sm bg-black border border-white/[0.1] rounded-[32px] overflow-hidden flex flex-col max-h-[80vh] animate-slide-up shadow-2xl">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-headline font-bold text-xl text-on-surface">Find Friends</h3>
+                <button
+                  onClick={() => { setShowAddFriend(false); setSearchQuery(""); }}
+                  className="w-9 h-9 rounded-full bg-white/[0.05] flex items-center justify-center text-muted hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              {/* Search Box */}
+              <div className="relative group">
+                <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-muted text-lg group-focus-within:text-primary transition-colors">search</span>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  type="text"
+                  placeholder="Search by display name..."
+                  autoFocus
+                  className="w-full bg-white/[0.04] pl-11 pr-4 py-4 rounded-2xl border border-white/[0.05] focus:border-primary/50 focus:bg-white/[0.06] outline-none text-sm placeholder:text-muted/50 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-[100px]">
+              {isSearching ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <span className="material-symbols-outlined text-2xl text-primary animate-spin">progress_activity</span>
+                  <span className="text-[10px] uppercase tracking-widest text-muted font-bold">Searching...</span>
+                </div>
+              ) : searchQuery && searchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 opacity-50">
+                  <span className="material-symbols-outlined text-3xl mb-2">person_search</span>
+                  <p className="text-xs">No users found for &quot;{searchQuery}&quot;</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {searchResults.map((user) => {
+                    const isFriend = friends.some(f => f.id === user.id);
+                    const isPendingSent = pendingSentRequests.some(r => r.to_user_id === user.id);
+                    const isPendingReceived = pendingReceivedRequests.some(r => r.from_user_id === user.id);
+                    const isSelf = currentUser?.id === user.id;
+
+                    return (
+                      <div key={user.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.05]">
+                        <GradientAvatar initials={user.display_name[0] ?? "?"} seed={user.display_name} size={40} />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-sm text-on-surface">{user.display_name}</h4>
+                          <p className="text-[10px] text-muted">{user.total_xp} XP</p>
+                        </div>
+
+                        {isSelf ? (
+                          <span className="px-3 py-1.5 rounded-full bg-white/[0.05] text-[10px] font-bold text-muted uppercase tracking-wider">You</span>
+                        ) : isFriend ? (
+                          <span className="px-3 py-1.5 rounded-full bg-primary/10 text-[10px] font-bold text-primary uppercase tracking-wider flex items-center gap-1">
+                            <span className="material-symbols-outlined text-xs">check</span> Friends
+                          </span>
+                        ) : isPendingSent ? (
+                          <span className="px-3 py-1.5 rounded-full bg-secondary/10 text-[10px] font-bold text-secondary uppercase tracking-wider">Requested</span>
+                        ) : isPendingReceived ? (
+                          <button
+                            onClick={() => {
+                              const req = pendingReceivedRequests.find(r => r.from_user_id === user.id);
+                              if (req) void handleAcceptFriendRequest(req.id);
+                            }}
+                            className="px-4 py-2 rounded-full bg-primary text-on-primary text-[10px] font-black uppercase tracking-wider hover:opacity-90 active:scale-95 transition-all"
+                          >
+                            Accept
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void handleSendFriendRequest(user.id)}
+                            className="w-10 h-10 rounded-full border border-primary/30 flex items-center justify-center text-primary hover:bg-primary hover:text-on-primary transition-all active:scale-90"
+                            title="Add friend"
+                          >
+                            <span className="material-symbols-outlined text-lg">person_add</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
-        )}
-
-      </section>
+        </div>
+      )}
     </div>
   );
 }

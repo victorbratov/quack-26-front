@@ -1,11 +1,12 @@
 import "~/styles/globals.css";
 
 import { type Metadata, type Viewport } from "next";
-import { Plus_Jakarta_Sans, Manrope } from "next/font/google";
+import { Plus_Jakarta_Sans, Manrope, Playfair_Display } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 
 import { BottomNavBar } from "~/components/BottomNavBar";
+import { NotificationIslandProvider } from "~/components/ui/NotificationIsland";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -19,15 +20,20 @@ const manrope = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
+const playfairDisplay = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "skint",
-  description: "a tool to avoid being skint",
+  title: "Stride",
+  description: "Financial wellness, reimagined",
   manifest: "/manifest.json",
-  themeColor: "#000000",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Your App Name",
+    title: "Stride",
     startupImage: [
       {
         url: "/icons/apple-splash-1170-2532.png",
@@ -44,6 +50,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -52,7 +59,7 @@ export default function RootLayout({
 
 
   return (
-    <html lang="en" className={`${plusJakartaSans.variable} ${manrope.variable}`}>
+    <html lang="en" className={`${plusJakartaSans.variable} ${manrope.variable} ${playfairDisplay.variable} dark`}>
       <head>
         <link
           rel="stylesheet"
@@ -61,14 +68,16 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/manifest-icon-192.maskable.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className="font-body antialiased bg-[#fafaf5] text-on-surface min-h-screen">
+      <body className="font-body antialiased bg-background text-on-surface min-h-screen">
         <TRPCReactProvider>
-          <div className="relative pt-6">
-            <main className="pb-40">
-              {children}
-            </main>
-            <BottomNavBar />
-          </div>
+          <NotificationIslandProvider>
+            <div className="relative">
+              <main className="page-enter">
+                {children}
+              </main>
+              <BottomNavBar />
+            </div>
+          </NotificationIslandProvider>
         </TRPCReactProvider>
       </body>
     </html>
