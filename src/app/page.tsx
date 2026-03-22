@@ -586,6 +586,36 @@ export default function Home() {
     setCompletingModule(null);
   };
 
+  if (loading) {
+    return (
+      <div className="app-container min-h-screen bg-background flex flex-col items-center justify-center text-center px-8">
+        {/* Bouncing logo */}
+        <div className="animate-bounce mb-6">
+          <div className="w-20 h-20 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <span className="material-symbols-outlined text-primary text-4xl">bolt</span>
+          </div>
+        </div>
+
+        {/* Brand name */}
+        <h1 className="font-headline text-3xl font-extrabold text-on-surface tracking-tight">STRIDE</h1>
+
+        {/* Loading pill */}
+        <div className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.04] border border-outline-variant">
+          <span className="material-symbols-outlined text-primary text-base animate-spin">progress_activity</span>
+          <span className="text-sm text-muted font-medium">Preparing your moves...</span>
+        </div>
+
+        {/* Subtitle */}
+        <p className="text-[11px] uppercase tracking-widest text-muted/50 mt-3 font-bold">Hold tight, crunching the numbers</p>
+
+        {/* Animated progress bar */}
+        <div className="w-48 h-0.5 bg-white/[0.04] rounded-full mt-6 overflow-hidden">
+          <div className="h-full w-1/3 bg-primary/40 rounded-full animate-[shimmer_1.5s_ease-in-out_infinite]" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
     <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body relative overflow-hidden">
@@ -728,11 +758,7 @@ export default function Home() {
         ) : (
           /* Today's live card deck */
           <div className="relative h-[65vh] md:h-[55vh] lg:h-[50vh] min-h-[400px] max-h-[600px] w-full">
-            {loading ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="material-symbols-outlined text-4xl text-muted animate-spin">progress_activity</span>
-              </div>
-            ) : cardDeck.length === 0 ? (
+            {cardDeck.length === 0 ? (
               <SpotlightCard className="absolute inset-0 flex flex-col items-center justify-center text-center">
                 <div className="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center">
                   <span className="material-symbols-outlined text-muted text-3xl">done_all</span>

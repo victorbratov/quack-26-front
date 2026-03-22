@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { GradientAvatar } from "~/components/ui/GradientAvatar";
@@ -56,8 +57,13 @@ export default function ProgressPage() {
 
   const [newGoalName, setNewGoalName] = useState("");
   const [newGoalTarget, setNewGoalTarget] = useState("");
+  const [showGoalModal, setShowGoalModal] = useState(false);
   const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState("");
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedTxCategory, setExpandedTxCategory] = useState<string | null>(null);
+  const [insightCache, setInsightCache] = useState<Record<string, string>>({});
+  const [insightLoading, setInsightLoading] = useState(false);
 
   const [debriefList, setDebriefList] = useState<Debrief[]>([]);
   const [selectedDebrief, setSelectedDebrief] = useState<Debrief | null>(null);
@@ -92,6 +98,32 @@ export default function ProgressPage() {
     });
   }, []);
 
+  const handleToggleInsight = useCallback(async (b: SpendingBenchmark) => {
+    if (expandedCategory === b.category) {
+      setExpandedCategory(null);
+      return;
+    }
+    setExpandedCategory(b.category);
+    if (insightCache[b.category]) return;
+    setInsightLoading(true);
+    try {
+      const result = await benchmarks.insight({
+        category: b.category,
+        your_spend: b.your_spend,
+        peer_avg: b.peer_avg,
+        peer_median: b.peer_median,
+        peer_p25: b.peer_p25,
+        peer_p75: b.peer_p75,
+        diff_pct: b.diff_pct,
+        status: b.status,
+      });
+      setInsightCache((prev) => ({ ...prev, [b.category]: result.insight }));
+    } catch {
+      setInsightCache((prev) => ({ ...prev, [b.category]: "Unable to generate insight." }));
+    }
+    setInsightLoading(false);
+  }, [expandedCategory, insightCache]);
+
   const handleCreateGoal = async () => {
     if (!newGoalName || !newGoalTarget) return;
     try {
@@ -99,6 +131,7 @@ export default function ProgressPage() {
       setGoalsList((prev) => [goal, ...prev]);
       setNewGoalName("");
       setNewGoalTarget("");
+      setShowGoalModal(false);
     } catch (e) { console.error(e); }
   };
 
@@ -171,6 +204,7 @@ export default function ProgressPage() {
   const xpProgress = xpInfo ? ((xpInfo.total_xp % 100) / 100) * 100 : 0;
 
   return (
+    <>
     <div className="app-container pb-32 min-h-screen bg-background text-on-background font-body">
       {/* Profile Card */}
       <div className="px-5 md:px-8 pt-8">
@@ -184,7 +218,7 @@ export default function ProgressPage() {
           <div className="flex items-center gap-5">
             <div className="shrink-0">
               <ProgressRing progress={xpProgress} size={76} strokeWidth={3} color="#c9b183">
-                <GradientAvatar size={62} initials={user?.display_name?.[0] ?? "?"} />
+                <GradientAvatar size={62} initials={user?.display_name?.[0] ?? "?"} seed={user?.display_name ?? "user"} />
               </ProgressRing>
             </div>
             <div className="flex-1 min-w-0">
@@ -195,17 +229,18 @@ export default function ProgressPage() {
 
           <div className="h-px bg-white/[0.06] my-4" />
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-3">
             {[
-              { value: xpInfo?.level ?? 0, label: "Level", prefix: "Lvl ", color: "text-primary" },
-              { value: mainStreak?.current_count ?? user?.current_streak_days ?? 0, label: "Day Streak", color: "text-secondary" },
-              { value: projSummary?.total_saved ?? 0, label: "Saved", prefix: "£", color: "text-primary" },
+              { value: user?.balance ?? 0, label: "Balance", prefix: "£", color: "text-primary" },
+              { value: goalsList.reduce((sum, g) => sum + g.current_amount, 0), label: "Savings", prefix: "£", color: "text-secondary" },
+              { value: mainStreak?.current_count ?? user?.current_streak_days ?? 0, label: "Streak", color: "text-primary", suffix: "d" },
+              { value: xpInfo?.level ?? 0, label: "Level", prefix: "Lvl ", color: "text-secondary" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className={`text-xl md:text-2xl font-headline font-bold ${stat.color}`}>
-                  <AnimatedCounter value={stat.value} prefix={stat.prefix} />
+                <div className={`text-lg md:text-xl font-headline font-bold ${stat.color}`}>
+                  <AnimatedCounter value={stat.value} prefix={stat.prefix} />{"suffix" in stat ? stat.suffix : ""}
                 </div>
-                <div className="text-[10px] md:text-xs uppercase text-muted font-bold tracking-wider mt-0.5">{stat.label}</div>
+                <div className="text-[9px] md:text-[10px] uppercase text-muted font-bold tracking-wider mt-0.5">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -266,6 +301,14 @@ export default function ProgressPage() {
       <section className="px-5 md:px-8">
         {/* GOALS */}
         {activeTab === "Goals" && (
+          <div className="space-y-4">
+            <button
+              onClick={() => { setShowGoalModal(true); setNewGoalName(""); setNewGoalTarget(""); }}
+              className="w-full py-3 rounded-xl border border-dashed border-outline-variant text-sm font-bold text-muted hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              New Goal
+            </button>
           <AnimatedList staggerMs={100} className="space-y-4">
             {goalsList.map((goal) => {
               const pct = Math.min((goal.current_amount / goal.target_amount) * 100, 100);
@@ -333,12 +376,8 @@ export default function ProgressPage() {
               );
             })}
 
-            <SpotlightCard className="p-4 space-y-3">
-              <input value={newGoalName} onChange={(e) => setNewGoalName(e.target.value)} placeholder="Goal name" className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-              <input value={newGoalTarget} onChange={(e) => setNewGoalTarget(e.target.value)} type="number" placeholder="Target amount (£)" className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted-foreground" />
-              <button onClick={handleCreateGoal} className="w-full py-3 rounded-full bg-primary text-on-primary font-bold text-sm">Create Goal</button>
-            </SpotlightCard>
           </AnimatedList>
+          </div>
         )}
 
         {/* INSIGHTS */}
@@ -347,20 +386,96 @@ export default function ProgressPage() {
             {spendingBenchmarks.length === 0 ? (
               <p className="text-muted text-center py-10">Complete onboarding to see peer comparisons</p>
             ) : (
-              spendingBenchmarks.map((b) => (
-                <SpotlightCard key={b.category} className="p-5">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-bold uppercase tracking-widest text-muted">{b.category.replace(/_/g, " ")}</span>
-                    <span className={`text-xs font-bold uppercase px-2 py-1 rounded ${b.status === "above" ? "bg-error/20 text-error" : b.status === "below" ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"}`}>
-                      {b.status === "above" ? `+${b.diff_pct.toFixed(0)}%` : b.status === "below" ? `${b.diff_pct.toFixed(0)}%` : "Average"}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-on-surface font-bold">£<AnimatedCounter value={b.your_spend} /></span>
-                    <span className="text-muted">Peer avg: £{b.peer_avg.toFixed(0)}</span>
-                  </div>
-                </SpotlightCard>
-              ))
+              spendingBenchmarks.map((b) => {
+                const isExpanded = expandedCategory === b.category;
+                return (
+                  <SpotlightCard key={b.category} className="overflow-hidden cursor-pointer hover:border-primary/30 transition-colors" onClick={() => handleToggleInsight(b)}>
+                    <div className="p-5">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold uppercase tracking-widest text-muted">{b.category.replace(/_/g, " ")}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold uppercase px-2 py-1 rounded ${b.status === "above" ? "bg-error/20 text-error" : b.status === "below" ? "bg-primary/20 text-primary" : "bg-secondary/20 text-secondary"}`}>
+                            {b.status === "above" ? `+${b.diff_pct.toFixed(0)}%` : b.status === "below" ? `${b.diff_pct.toFixed(0)}%` : "Average"}
+                          </span>
+                          <span className={`material-symbols-outlined text-muted text-sm transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-on-surface font-bold">£<AnimatedCounter value={b.your_spend} /></span>
+                        <span className="text-muted">Peer avg: £{b.peer_avg.toFixed(0)}</span>
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-5 pb-5 space-y-4 border-t border-white/[0.06] pt-4">
+                            {/* Visual comparison */}
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted w-8 text-right shrink-0">You</span>
+                                <div className="flex-1 h-4 bg-white/[0.04] rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${b.status === "above" ? "bg-error/30" : b.status === "below" ? "bg-primary/30" : "bg-secondary/30"}`}
+                                    style={{ width: `${Math.min((b.your_spend / Math.max(b.peer_p75, b.your_spend)) * 100, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-muted w-8 text-right shrink-0">Avg</span>
+                                <div className="flex-1 h-4 bg-white/[0.04] rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-white/[0.1]"
+                                    style={{ width: `${Math.min((b.peer_avg / Math.max(b.peer_p75, b.your_spend)) * 100, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Percentile breakdown */}
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="text-center p-2 rounded-xl bg-white/[0.03]">
+                                <div className="text-xs font-bold text-on-surface">£{b.peer_p25.toFixed(0)}</div>
+                                <div className="text-[9px] text-muted">Low</div>
+                              </div>
+                              <div className="text-center p-2 rounded-xl bg-white/[0.03]">
+                                <div className="text-xs font-bold text-on-surface">£{b.peer_median.toFixed(0)}</div>
+                                <div className="text-[9px] text-muted">Median</div>
+                              </div>
+                              <div className="text-center p-2 rounded-xl bg-white/[0.03]">
+                                <div className="text-xs font-bold text-on-surface">£{b.peer_p75.toFixed(0)}</div>
+                                <div className="text-[9px] text-muted">High</div>
+                              </div>
+                            </div>
+
+                            {/* AI Insight */}
+                            <div className="pt-1">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary">AI Insight</span>
+                              </div>
+                              {insightLoading && expandedCategory === b.category && !insightCache[b.category] ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="material-symbols-outlined text-sm text-muted animate-spin">progress_activity</span>
+                                  <span className="text-xs text-muted">Analysing...</span>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-on-surface/70 leading-relaxed">{insightCache[b.category] ?? ""}</p>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </SpotlightCard>
+                );
+              })
             )}
           </AnimatedList>
         )}
@@ -489,26 +604,132 @@ export default function ProgressPage() {
         )}
 
         {/* TRANSACTIONS */}
-        {activeTab === "Transactions" && (
-          <AnimatedList staggerMs={80} className="space-y-4">
-            {spendingSummary.length === 0 ? (
-              <p className="text-muted text-center py-10">No transactions yet</p>
-            ) : (
-              spendingSummary.map((cat) => (
-                <SpotlightCard key={cat.category} className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-on-surface capitalize">{cat.category.replace(/_/g, " ")}</div>
-                    <div className="text-xs text-muted">{cat.count} transactions</div>
-                  </div>
-                  <div className="text-lg font-headline font-bold text-primary">
-                    £<AnimatedCounter value={cat.total} />
-                  </div>
-                </SpotlightCard>
-              ))
-            )}
-          </AnimatedList>
-        )}
+        {activeTab === "Transactions" && (() => {
+          const grandTotal = spendingSummary.reduce((s, c) => s + c.total, 0);
+          return (
+            <AnimatedList staggerMs={80} className="space-y-4">
+              {spendingSummary.length === 0 ? (
+                <p className="text-muted text-center py-10">No transactions yet</p>
+              ) : (
+                spendingSummary.map((cat) => {
+                  const isExpanded = expandedTxCategory === cat.category;
+                  const pctOfTotal = grandTotal > 0 ? (cat.total / grandTotal) * 100 : 0;
+                  const avgPerTx = cat.count > 0 ? cat.total / cat.count : 0;
+                  return (
+                    <SpotlightCard
+                      key={cat.category}
+                      className="overflow-hidden cursor-pointer hover:border-primary/30 transition-colors"
+                      onClick={() => setExpandedTxCategory(isExpanded ? null : cat.category)}
+                    >
+                      <div className="p-4 flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-on-surface capitalize">{cat.category.replace(/_/g, " ")}</div>
+                          <div className="text-xs text-muted">{cat.count} transactions</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-lg font-headline font-bold text-primary">
+                            £<AnimatedCounter value={cat.total} />
+                          </div>
+                          <span className={`material-symbols-outlined text-muted text-sm transition-transform ${isExpanded ? "rotate-180" : ""}`}>expand_more</span>
+                        </div>
+                      </div>
+
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-4 pb-4 space-y-3 border-t border-white/[0.06] pt-3">
+                              {/* % of total bar */}
+                              <div>
+                                <div className="flex justify-between text-[10px] text-muted mb-1">
+                                  <span>{pctOfTotal.toFixed(0)}% of total spending</span>
+                                  <span>£{grandTotal.toFixed(0)} total</span>
+                                </div>
+                                <div className="h-2 bg-white/[0.04] rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary/30" style={{ width: `${pctOfTotal}%` }} />
+                                </div>
+                              </div>
+
+                              {/* Stats */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="p-2.5 rounded-xl bg-white/[0.03] text-center">
+                                  <div className="text-sm font-bold text-on-surface">£{avgPerTx.toFixed(0)}</div>
+                                  <div className="text-[9px] text-muted">Avg per transaction</div>
+                                </div>
+                                <div className="p-2.5 rounded-xl bg-white/[0.03] text-center">
+                                  <div className="text-sm font-bold text-on-surface">£{(cat.total / 4.3).toFixed(0)}</div>
+                                  <div className="text-[9px] text-muted">Weekly average</div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </SpotlightCard>
+                  );
+                })
+              )}
+            </AnimatedList>
+          );
+        })()}
       </section>
     </div>
+
+      {/* Create Goal Popup */}
+      {showGoalModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }} onClick={() => setShowGoalModal(false)} />
+          <div className="w-full max-w-sm bg-black border border-white/[0.1] rounded-3xl overflow-hidden animate-slide-up" style={{ position: "relative" }}>
+            <div className="p-5 pb-3">
+              <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-4" />
+              <div className="flex items-center justify-between">
+                <h2 className="font-headline font-bold text-lg text-on-surface">New Goal</h2>
+                <button onClick={() => setShowGoalModal(false)} className="text-muted hover:text-on-surface p-1">
+                  <span className="material-symbols-outlined text-xl">close</span>
+                </button>
+              </div>
+            </div>
+            <div className="px-5 pb-5 space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-muted mb-1.5 block">Goal name</label>
+                <input
+                  value={newGoalName}
+                  onChange={(e) => setNewGoalName(e.target.value)}
+                  placeholder="e.g. Emergency Fund"
+                  autoFocus
+                  className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-muted mb-1.5 block">Target amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">£</span>
+                  <input
+                    value={newGoalTarget}
+                    onChange={(e) => setNewGoalTarget(e.target.value)}
+                    type="number"
+                    placeholder="1000"
+                    className="w-full bg-surface-container p-3 pl-8 rounded-xl border border-outline-variant focus:border-primary outline-none text-sm placeholder:text-muted/50"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleCreateGoal}
+                disabled={!newGoalName || !newGoalTarget}
+                className="w-full py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
+              >
+                <span className="material-symbols-outlined text-base">flag</span>
+                Create Goal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -254,6 +254,11 @@ export const gamification = {
 export const benchmarks = {
   spending: () => fetchAPI<SpendingBenchmark[]>("/benchmarks/spending"),
   ranking: () => fetchAPI<RankingBenchmark[]>("/benchmarks/ranking"),
+  insight: (data: { category: string; your_spend: number; peer_avg: number; peer_median: number; peer_p25: number; peer_p75: number; diff_pct: number; status: string }) =>
+    fetchAPI<{ insight: string; category: string }>("/benchmarks/insight", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 // ─── Learning ───

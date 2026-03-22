@@ -287,7 +287,7 @@ export default function SocialPage() {
                           return (
                             <div key={item.id}>
                               <div className={`flex items-start gap-3 py-4 px-3 rounded-2xl transition-all ${isVaulted ? "bg-secondary/5 border border-secondary/10" : ""}`}>
-                                <GradientAvatar initials={item.display_name?.[0] ?? "?"} size={38} />
+                                <GradientAvatar initials={item.display_name?.[0] ?? "?"} seed={item.display_name ?? "user"} size={38} />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm text-on-surface leading-snug">
                                     <span className="font-bold">{item.display_name}</span>{" "}
@@ -461,7 +461,7 @@ export default function SocialPage() {
                     {selectedSquad.members.map((member, i) => (
                       <div key={member.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
                         <div className="w-6 text-center text-muted font-bold text-xs">{i + 1}</div>
-                        <GradientAvatar initials={member.display_name[0] ?? "?"} size={40} />
+                        <GradientAvatar initials={member.display_name[0] ?? "?"} seed={member.display_name} size={40} />
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm text-on-surface">{member.display_name}</div>
                           <div className="text-xs text-muted">{member.total_xp} XP</div>
@@ -585,7 +585,7 @@ export default function SocialPage() {
               <AnimatedList staggerMs={60} className="space-y-2">
                 {selectedChallenge.participants.map((p) => (
                   <div key={p.user_id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors">
-                    <GradientAvatar initials={p.display_name[0] ?? "?"} size={38} />
+                    <GradientAvatar initials={p.display_name[0] ?? "?"} seed={p.display_name} size={38} />
                     <div className="flex-1 min-w-0">
                       <span className="font-bold text-sm text-on-surface">{p.display_name}</span>
                     </div>
@@ -620,7 +620,7 @@ export default function SocialPage() {
                     {pendingReceivedRequests.map((req) => (
                       <SpotlightCard key={req.id} className="p-4">
                         <div className="flex items-center gap-4">
-                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} size={40} />
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} seed={req.display_name ?? "user"} size={40} />
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
                             <p className="text-[11px] text-muted">Sent you a friend request</p>
@@ -656,7 +656,7 @@ export default function SocialPage() {
                     {pendingSentRequests.map((req) => (
                       <SpotlightCard key={req.id} className="p-4">
                         <div className="flex items-center gap-4 opacity-70">
-                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} size={40} />
+                          <GradientAvatar initials={req.display_name?.[0] ?? "?"} seed={req.display_name ?? "user"} size={40} />
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-sm text-on-surface">{req.display_name}</h4>
                             <p className="text-[11px] text-muted">Awaiting response</p>
@@ -686,7 +686,7 @@ export default function SocialPage() {
                           }`}>
                           #{i + 1}
                         </div>
-                        <GradientAvatar initials={entry.display_name[0] ?? "?"} size={36} />
+                        <GradientAvatar initials={entry.display_name[0] ?? "?"} seed={entry.display_name} size={36} />
                         <div className="flex-1 min-w-0 font-bold text-sm text-on-surface">{entry.display_name}</div>
                         <div className="flex items-center gap-3 text-right">
                           <div className="flex items-center gap-1 text-secondary text-sm font-bold">
@@ -713,7 +713,7 @@ export default function SocialPage() {
                   <AnimatedList staggerMs={60} className="space-y-2">
                     {friends.map((f) => (
                       <div key={f.id} className="flex items-center gap-3 p-3 rounded-2xl hover:bg-white/[0.02] transition-colors border border-transparent hover:border-white/[0.05]">
-                        <GradientAvatar initials={f.display_name[0] ?? "?"} size={40} />
+                        <GradientAvatar initials={f.display_name[0] ?? "?"} seed={f.display_name} size={40} />
                         <div className="flex-1 min-w-0">
                           <div className="font-bold text-sm text-on-surface">{f.display_name}</div>
                           <div className="text-xs text-muted flex items-center gap-2">
@@ -798,7 +798,7 @@ export default function SocialPage() {
 
                     return (
                       <div key={user.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.05]">
-                        <GradientAvatar initials={user.display_name[0] ?? "?"} size={40} />
+                        <GradientAvatar initials={user.display_name[0] ?? "?"} seed={user.display_name} size={40} />
                         <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-sm text-on-surface">{user.display_name}</h4>
                           <p className="text-[10px] text-muted">{user.total_xp} XP</p>
