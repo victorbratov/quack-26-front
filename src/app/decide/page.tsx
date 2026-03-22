@@ -559,11 +559,8 @@ export default function DecidePage() {
             <span className="material-symbols-outlined text-base">arrow_back</span> Back
           </button>
 
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-              <span className="material-symbols-outlined text-primary text-2xl">{iconMap[pendingDecision.type] ?? "help"}</span>
-            </div>
-            <h2 className="font-headline font-bold text-xl text-on-surface">{pendingDecision.title}</h2>
+          <div>
+            <h2 className="font-headline font-bold text-2xl text-primary">{pendingDecision.title}</h2>
             <p className="text-xs text-muted mt-1">Add details so the council can give specific advice</p>
           </div>
 
