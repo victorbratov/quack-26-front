@@ -179,6 +179,11 @@ details[open] summary .expand-icon {
   100% { transform: translateX(100%); }
 }
 
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.33%); }
+}
+
 /* Responsive container */
 .app-container {
   width: 100%;

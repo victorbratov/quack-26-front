@@ -8,8 +8,10 @@ import { SpotlightCard } from "~/components/ui/SpotlightCard";
 import { AnimatedCounter } from "~/components/ui/AnimatedCounter";
 import { ShimmerButton } from "~/components/ui/ShimmerButton";
 import ReactMarkdown from "react-markdown";
+import { AnimatePresence, motion } from "motion/react";
 import { useNotificationIsland } from "~/components/ui/NotificationIsland";
-import { cards as cardsAPI, gamification, debrief as debriefAPI, learning } from "~/lib/api";
+import { cards as cardsAPI, gamification, debrief as debriefAPI, learning, habitExchange } from "~/lib/api";
+import type { HabitPortfolio, HabitPrices, HabitLedgerEntry, HabitScenario, HabitSpendItem, HabitOdds } from "~/lib/api";
 import type { Card, XPInfo, Debrief, LearningModule, LearningModuleDetail } from "~/lib/api";
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -72,12 +74,14 @@ function SwipeCard({
   stackIndex,
   onSwipe,
   onQuizAnswer,
+  onOpenExchange,
 }: {
   card: Card;
   isTop: boolean;
   stackIndex: number;
   onSwipe: (direction: "left" | "right") => void;
   onQuizAnswer?: (cardId: string, data: { selected_index?: number; choice?: string }) => Promise<{ correct: boolean; explanation: string; xp_awarded: number } | null>;
+  onOpenExchange?: () => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [dragX, setDragX] = useState(0);
@@ -90,6 +94,7 @@ function SwipeCard({
   // Quiz/scenario state
   const isQuiz = card.card_type === "market_quiz";
   const isScenario = card.card_type === "historical_scenario";
+  const isHabitMarket = card.card_type === "habit_market";
   const isInteractive = isQuiz || isScenario;
   const [flipped, setFlipped] = useState(false);
   const [quizResult, setQuizResult] = useState<{ correct: boolean; explanation: string; xp_awarded: number } | null>(null);
@@ -213,10 +218,11 @@ function SwipeCard({
           <div className={`inline-block px-3 py-1.5 rounded-full border ${
             isQuiz ? "bg-emerald-400/10 border-emerald-400/30" :
             isScenario ? "bg-amber-400/10 border-amber-400/30" :
+            isHabitMarket ? "bg-purple-400/10 border-purple-400/30" :
             "bg-white/5 border-outline-variant"
           }`}>
             <span className={`text-[10px] font-bold uppercase tracking-widest ${
-              isQuiz ? "text-emerald-400" : isScenario ? "text-amber-400" : "text-secondary"
+              isQuiz ? "text-emerald-400" : isScenario ? "text-amber-400" : isHabitMarket ? "text-purple-400" : "text-secondary"
             }`}>{card.card_type.replace(/_/g, " ")}</span>
           </div>
         </div>
@@ -359,8 +365,34 @@ function SwipeCard({
             </>
           )}
 
+          {/* HABIT MARKET CARD */}
+          {isHabitMarket && (() => {
+            const tokenIcons: Record<string, string> = { discipline: "local_fire_department", restraint: "shield", knowledge: "school", indulgence: "theater_comedy", regret: "undo", patience: "hourglass_empty", curiosity: "explore" };
+            const mover = card.detail_json?.biggest_mover as string ?? "discipline";
+            return (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-primary text-2xl">{tokenIcons[mover] ?? "token"}</span>
+                  <h3 className="text-xl md:text-2xl font-headline font-bold text-on-surface leading-tight">{card.title}</h3>
+                </div>
+                <p className="text-sm text-muted leading-relaxed">{card.body}</p>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {((card.detail_json?.portfolio as Array<{token_type: string; icon?: string; amount: number; change_pct: number}>) ?? []).map((t) => (
+                    <div key={t.token_type} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03]">
+                      <span className="material-symbols-outlined text-primary text-sm">{tokenIcons[t.token_type] ?? "token"}</span>
+                      <div>
+                        <span className="text-xs font-bold text-on-surface">{t.amount}</span>
+                        <span className={`text-[10px] ml-1 ${t.change_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>{t.change_pct >= 0 ? "+" : ""}{t.change_pct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
+
           {/* STANDARD CARD — original rendering */}
-          {!isInteractive && (
+          {!isInteractive && !isHabitMarket && (
             <>
               <h3 className="text-3xl md:text-4xl font-headline font-bold text-on-surface leading-tight">{card.title}</h3>
               <p className="text-lg md:text-xl text-muted leading-relaxed">{card.body}</p>
@@ -383,7 +415,18 @@ function SwipeCard({
         </div>
 
         {/* Bottom: action buttons */}
-        {isTop && !isInteractive && (
+        {isTop && isHabitMarket && (
+          <div className="flex gap-3 pt-4">
+            <button onClick={() => onSwipe("left")} className="flex-1 py-3.5 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-sm text-muted">
+              Skip
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); onOpenExchange?.(); }} className="flex-1 py-3.5 rounded-full bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-base">currency_exchange</span>
+              Enter Exchange
+            </button>
+          </div>
+        )}
+        {isTop && !isInteractive && !isHabitMarket && (
           <div className="flex gap-3 pt-4">
             <button onClick={() => onSwipe("left")} className="flex-1 py-3.5 md:py-4 rounded-full border border-outline hover:bg-white/5 transition-colors font-bold text-base text-on-surface flex items-center justify-center gap-2">
               <span className="material-symbols-outlined text-xl">close</span>Dismiss
@@ -424,6 +467,23 @@ export default function Home() {
   const [generatingDebrief, setGeneratingDebrief] = useState(false);
   const [expandNumbers, setExpandNumbers] = useState(false);
   const [expandPatterns, setExpandPatterns] = useState(false);
+
+  // Habit Exchange
+  const [showExchange, setShowExchange] = useState(false);
+  const [exchangePortfolio, setExchangePortfolio] = useState<HabitPortfolio | null>(null);
+  const [exchangePrices, setExchangePrices] = useState<HabitPrices | null>(null);
+  const [exchangeLoading, setExchangeLoading] = useState(false);
+  const [tradeFrom, setTradeFrom] = useState("indulgence");
+  const [tradeTo, setTradeTo] = useState("knowledge");
+  const [tradeAmount, setTradeAmount] = useState("1");
+  const [tradeResult, setTradeResult] = useState<string | null>(null);
+  const [purchasedContent, setPurchasedContent] = useState<string | null>(null);
+  const [exchangeIntroPhase, setExchangeIntroPhase] = useState(0);
+  const [ledger, setLedger] = useState<HabitLedgerEntry[]>([]);
+  const [scenario, setScenario] = useState<HabitScenario | null>(null);
+  const [spendItems, setSpendItems] = useState<HabitSpendItem[]>([]);
+  const [exchangeTab, setExchangeTab] = useState<"portfolio" | "trade" | "spend" | "ledger" | "odds">("portfolio");
+  const [odds, setOdds] = useState<HabitOdds | null>(null);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [dayCards, setDayCards] = useState<Card[]>([]);
   const [dayLoading, setDayLoading] = useState(false);
@@ -556,6 +616,56 @@ export default function Home() {
     } catch (e) {
       console.error(e);
       return null;
+    }
+  };
+
+  const openExchange = async () => {
+    setShowExchange(true);
+    setExchangeLoading(true);
+    setTradeResult(null);
+    setExchangeIntroPhase(1);
+    setExchangeTab("portfolio");
+
+    // Cinematic intro sequence
+    setTimeout(() => setExchangeIntroPhase(2), 2000);
+    setTimeout(() => setExchangeIntroPhase(3), 4000);
+    setTimeout(() => setExchangeIntroPhase(4), 6000);
+
+    try {
+      const [portfolio, prices, ledgerData, scenarioData, items, oddsData] = await Promise.all([
+        habitExchange.portfolio(),
+        habitExchange.prices(),
+        habitExchange.ledger().catch(() => []),
+        habitExchange.scenario().catch(() => null),
+        habitExchange.spendItems().catch(() => []),
+        habitExchange.odds().catch(() => null),
+      ]);
+      setExchangePortfolio(portfolio);
+      setExchangePrices(prices);
+      setLedger(ledgerData);
+      setScenario(scenarioData);
+      setSpendItems(items);
+      setOdds(oddsData);
+    } catch (e) { console.error(e); }
+
+    // Wait for intro to finish before showing content
+    setTimeout(() => {
+      setExchangeIntroPhase(5);
+      setExchangeLoading(false);
+    }, 8000);
+  };
+
+  const executeTrade = async () => {
+    const amt = parseFloat(tradeAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    try {
+      const result = await habitExchange.trade(tradeFrom, tradeTo, amt);
+      setTradeResult(result.message);
+      // Refresh portfolio
+      const portfolio = await habitExchange.portfolio();
+      setExchangePortfolio(portfolio);
+    } catch (e) {
+      setTradeResult("Trade failed");
     }
   };
 
@@ -775,6 +885,7 @@ export default function Home() {
                   stackIndex={i}
                   onSwipe={handleSwipe}
                   onQuizAnswer={handleQuizAnswer}
+                  onOpenExchange={openExchange}
                 />
               ))
             )}
@@ -905,6 +1016,517 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Habit Exchange — cinematic full screen */}
+      <AnimatePresence>
+      {showExchange && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 40 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 40 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="fixed inset-0 z-[200] bg-background flex flex-col"
+        >
+          {/* ── CINEMATIC INTRO ── */}
+          {exchangeIntroPhase < 5 && (
+            <div className="absolute inset-0 z-50 bg-background flex flex-col items-center justify-center text-center px-8">
+              <AnimatePresence mode="wait">
+                {exchangeIntroPhase === 1 && (
+                  <motion.div key="p1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.5 }}>
+                    <span className="material-symbols-outlined text-primary text-5xl mb-4">currency_exchange</span>
+                    <h2 className="font-headline text-2xl font-extrabold text-on-surface">ENTERING ALTERNATE UNIVERSE</h2>
+                  </motion.div>
+                )}
+                {exchangeIntroPhase === 2 && (
+                  <motion.div key="p2" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.5 }} className="space-y-3">
+                    <p className="text-lg text-on-surface/80 font-medium">In this world, money doesn&apos;t exist.</p>
+                    <p className="text-sm text-muted">Your currency is your behavior.</p>
+                  </motion.div>
+                )}
+                {exchangeIntroPhase === 3 && (
+                  <motion.div key="p3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.5 }} className="space-y-3">
+                    <p className="text-lg text-on-surface/80 font-medium">Discipline. Restraint. Knowledge.</p>
+                    <p className="text-sm text-muted">Every good habit earns. Every bad one costs.</p>
+                  </motion.div>
+                )}
+                {exchangeIntroPhase === 4 && (
+                  <motion.div key="p4" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.1 }} transition={{ duration: 0.5 }}>
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                      <span className="material-symbols-outlined text-primary text-3xl">bolt</span>
+                    </div>
+                    <h2 className="font-headline text-xl font-extrabold text-primary">WELCOME TO THE HABIT EXCHANGE</h2>
+                    <div className="mt-3 flex items-center gap-2 justify-center px-5 py-2 rounded-full bg-white/[0.04] border border-outline-variant">
+                      <span className="material-symbols-outlined text-primary text-sm animate-spin">progress_activity</span>
+                      <span className="text-xs text-muted">Loading your portfolio...</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+          {/* Header — only show after intro */}
+          {exchangeIntroPhase >= 5 && (
+          <div className="px-5 pt-10 pb-3 border-b border-white/[0.05] shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-headline font-bold text-xl text-on-surface">HABIT EXCHANGE</h2>
+                <p className="text-[11px] text-muted mt-0.5">Your behavior is your currency</p>
+              </div>
+              <button onClick={() => setShowExchange(false)} className="w-9 h-9 rounded-full border border-outline-variant flex items-center justify-center text-muted hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+            {/* Tab bar */}
+            <div className="flex gap-1 mt-3 bg-white/[0.03] rounded-full p-0.5">
+              {([["portfolio", "account_balance_wallet"], ["trade", "swap_horiz"], ["spend", "shopping_bag"], ["odds", "casino"], ["ledger", "receipt_long"]] as const).map(([tab, icon]) => (
+                <button
+                  key={tab}
+                  onClick={() => setExchangeTab(tab)}
+                  className={`flex-1 py-2 rounded-full text-[11px] font-bold capitalize flex items-center justify-center gap-1 transition-colors ${
+                    exchangeTab === tab ? "bg-primary/15 text-primary" : "text-muted"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-xs">{icon}</span>
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+          )}
+
+          {/* Ticker — always visible after intro */}
+          {exchangeIntroPhase >= 5 && exchangePrices && (() => {
+            const tokenIcons: Record<string, string> = { discipline: "local_fire_department", restraint: "shield", knowledge: "school", indulgence: "theater_comedy", regret: "undo", patience: "hourglass_empty", curiosity: "explore" };
+            return (
+              <div className="border-b border-white/[0.05] overflow-hidden shrink-0 py-2.5">
+                <div className="flex gap-6 animate-[ticker_12s_linear_infinite] w-max">
+                  {[0, 1, 2].map((dup) =>
+                    Object.entries(exchangePrices.prices).map(([token, price]) => {
+                      const change = exchangePrices.changes[token] ?? 0;
+                      return (
+                        <div key={`${dup}-${token}`} className="flex items-center gap-1.5 shrink-0">
+                          <span className="material-symbols-outlined text-primary text-sm">{tokenIcons[token] ?? "token"}</span>
+                          <span className="text-xs font-bold text-on-surface capitalize">{token}</span>
+                          <span className="text-xs text-muted">{Number(price).toFixed(1)}</span>
+                          <span className={`text-[10px] font-bold ${change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {change >= 0 ? "+" : ""}{change.toFixed(1)}%
+                          </span>
+                          <span className="text-muted/30 mx-1">•</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Content — tabbed */}
+          <div className="overflow-y-auto flex-1 px-5 py-5">
+            {exchangeIntroPhase >= 5 && !exchangeLoading && exchangePortfolio && (() => {
+              const tokenIcons: Record<string, string> = { discipline: "local_fire_department", restraint: "shield", knowledge: "school", indulgence: "theater_comedy", regret: "undo", patience: "hourglass_empty", curiosity: "explore" };
+              const allTokens = ["discipline", "restraint", "knowledge", "indulgence", "regret", "patience", "curiosity"];
+              return (
+              <div className="space-y-5">
+                {exchangeTab === "portfolio" && (<>
+                {/* Portfolio value */}
+                <div className="text-center">
+                  <div className="text-xs uppercase tracking-widest text-muted font-bold mb-1">Portfolio Value</div>
+                  <div className="text-3xl font-headline font-extrabold text-primary">{exchangePortfolio.total_value.toFixed(0)} <span className="text-lg text-muted">pts</span></div>
+                </div>
+
+                {/* Token balances */}
+                <div className="grid grid-cols-2 gap-3">
+                  {exchangePortfolio.balances.map((t) => (
+                    <SpotlightCard key={t.token_type} className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-primary text-base">{tokenIcons[t.token_type] ?? "token"}</span>
+                        <span className="text-xs font-bold text-on-surface capitalize">{t.token_type}</span>
+                      </div>
+                      <div className="text-xl font-headline font-bold text-on-surface">{t.amount}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[10px] text-muted">@ {t.price.toFixed(1)} ea</span>
+                        <span className={`text-[10px] font-bold ${t.change_pct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {t.change_pct >= 0 ? "+" : ""}{t.change_pct.toFixed(0)}%
+                        </span>
+                      </div>
+                    </SpotlightCard>
+                  ))}
+                </div>
+
+                {/* Price explanation */}
+                {exchangePrices?.explanation && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/[0.03]">
+                    <span className="material-symbols-outlined text-primary text-sm mt-0.5">auto_awesome</span>
+                    <p className="text-xs text-on-surface/70 leading-relaxed">{exchangePrices.explanation}</p>
+                  </div>
+                )}
+
+                {/* What-If Scenario */}
+                {scenario && (
+                  <SpotlightCard className="p-4" spotlightColor="rgba(201, 177, 131, 0.1)">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-base">help</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">What If?</span>
+                    </div>
+                    <p className="text-sm text-on-surface/80 leading-relaxed">{scenario.scenario}</p>
+                    {scenario.insight && <p className="text-xs text-muted mt-2 italic">{scenario.insight}</p>}
+                  </SpotlightCard>
+                )}
+                </>)}
+
+                {exchangeTab === "trade" && (<>
+                {/* Trade section — custom token selectors */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted">Trade</div>
+
+                  {/* From token */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-muted">From</span>
+                      {tradeFrom && <span className="text-[10px] text-primary capitalize font-bold">{tradeFrom}</span>}
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                      {allTokens.map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTradeFrom(t)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                            tradeFrom === t ? "bg-primary/20 border-2 border-primary" : "bg-white/[0.04] border border-outline-variant"
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-base ${tradeFrom === t ? "text-primary" : "text-muted"}`}>{tokenIcons[t]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <span className="material-symbols-outlined text-muted text-base">swap_vert</span>
+                  </div>
+
+                  {/* To token */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-muted">To</span>
+                      {tradeTo && <span className="text-[10px] text-primary capitalize font-bold">{tradeTo}</span>}
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                      {allTokens.filter((t) => t !== tradeFrom).map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => setTradeTo(t)}
+                          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                            tradeTo === t ? "bg-primary/20 border-2 border-primary" : "bg-white/[0.04] border border-outline-variant"
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-base ${tradeTo === t ? "text-primary" : "text-muted"}`}>{tokenIcons[t]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      value={tradeAmount}
+                      onChange={(e) => setTradeAmount(e.target.value)}
+                      placeholder="Amount"
+                      className="flex-1 bg-surface-container border border-outline-variant rounded-xl py-3 px-4 text-sm text-on-surface"
+                    />
+                    <button
+                      onClick={executeTrade}
+                      disabled={tradeFrom === tradeTo}
+                      className="px-6 py-3 rounded-xl bg-primary text-on-primary font-bold text-sm disabled:opacity-50"
+                    >
+                      Trade
+                    </button>
+                  </div>
+                  {tradeResult && (
+                    <p className="text-xs text-emerald-400 text-center">{tradeResult}</p>
+                  )}
+                </div>
+
+                <div className="h-px bg-white/[0.06]" />
+
+                {/* Convert to XP */}
+                <div className="space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted">Convert to XP</div>
+                  <p className="text-[11px] text-muted">Cash out tokens at market price. 1 price unit = 1 XP.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {exchangePortfolio.balances.filter((t) => t.amount > 0).map((t) => (
+                      <button
+                        key={t.token_type}
+                        onClick={async () => {
+                          try {
+                            const res = await habitExchange.convert(t.token_type, 1);
+                            if (res.success) {
+                              setTradeResult(`Converted 1 ${t.token_type} → +${res.xp_awarded} XP`);
+                              if (xpInfo) setXpInfo({ ...xpInfo, total_xp: xpInfo.total_xp + res.xp_awarded });
+                              const portfolio = await habitExchange.portfolio();
+                              setExchangePortfolio(portfolio);
+                              island?.show("star", `+${res.xp_awarded} XP`, "#c9b183");
+                            }
+                          } catch { setTradeResult("Conversion failed"); }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-white/[0.03] border border-outline-variant text-xs font-bold text-on-surface flex items-center gap-1.5 hover:border-primary/30 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-primary text-xs">{tokenIcons[t.token_type]}</span>
+                        1 {t.token_type} → {t.price.toFixed(0)} XP
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                </>)}
+
+                {/* Spend tab */}
+                {exchangeTab === "spend" && (<>
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted mb-3">Spend Tokens</div>
+                  <p className="text-xs text-muted mb-4">Use your tokens to unlock features in the app</p>
+                  <div className="space-y-3">
+                    {spendItems.map((item) => (
+                      <SpotlightCard key={item.id} className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                              <span className="material-symbols-outlined text-primary text-lg">{item.icon}</span>
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-on-surface">{item.name}</div>
+                              <div className="text-[10px] text-muted">{item.description}</div>
+                              <div className="text-[10px] text-primary mt-0.5">{item.cost_amount} {item.cost_token}</div>
+                            </div>
+                          </div>
+                          <button
+                            disabled={!item.can_afford}
+                            onClick={async () => {
+                              try {
+                                const res = await habitExchange.spend(item.id) as { success: boolean; message: string; content?: string };
+                                setTradeResult(res.message);
+                                if (res.content) setPurchasedContent(res.content);
+                                const p = await habitExchange.portfolio();
+                                setExchangePortfolio(p);
+                                const items = await habitExchange.spendItems();
+                                setSpendItems(items);
+                              } catch { setTradeResult("Purchase failed"); }
+                            }}
+                            className="px-4 py-2 rounded-xl bg-primary text-on-primary text-xs font-bold disabled:opacity-30"
+                          >
+                            Buy
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    ))}
+                  </div>
+                  {tradeResult && <p className="text-xs text-emerald-400 text-center mt-3">{tradeResult}</p>}
+                  {purchasedContent && (
+                    <SpotlightCard className="p-4 mt-3" spotlightColor="rgba(201, 177, 131, 0.1)">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-primary text-base">auto_awesome</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Your Purchase</span>
+                        <button onClick={() => setPurchasedContent(null)} className="ml-auto text-muted hover:text-on-surface">
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      </div>
+                      <p className="text-sm text-on-surface/80 leading-relaxed">{purchasedContent}</p>
+                    </SpotlightCard>
+                  )}
+                </>)}
+
+                {/* Odds tab */}
+                {exchangeTab === "odds" && odds && (<>
+                  {/* Fortune Score */}
+                  <div className="flex flex-col items-center mb-5">
+                    <div className={`w-28 h-28 rounded-full border-4 flex items-center justify-center ${
+                      odds.fortune_score >= 70 ? "border-emerald-400" : odds.fortune_score >= 40 ? "border-amber-400" : "border-red-400"
+                    }`}>
+                      <div className="text-center">
+                        <div className={`text-3xl font-headline font-extrabold ${
+                          odds.fortune_score >= 70 ? "text-emerald-400" : odds.fortune_score >= 40 ? "text-amber-400" : "text-red-400"
+                        }`}>{odds.fortune_score}</div>
+                        <div className="text-[9px] text-muted uppercase tracking-widest">Fortune</div>
+                      </div>
+                    </div>
+                    <div className={`mt-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                      odds.risk_level === "low" ? "bg-emerald-400/10 text-emerald-400" :
+                      odds.risk_level === "medium" ? "bg-amber-400/10 text-amber-400" :
+                      "bg-red-400/10 text-red-400"
+                    }`}>
+                      {odds.risk_level} risk
+                    </div>
+                  </div>
+
+                  {/* Probability cards */}
+                  <div className="space-y-3">
+                    <div className="text-xs font-bold uppercase tracking-widest text-muted mb-2">Your Odds</div>
+
+                    {/* Budget */}
+                    <SpotlightCard className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-base">account_balance_wallet</span>
+                          <span className="text-xs text-on-surface font-bold">Staying within budget</span>
+                        </div>
+                        <span className={`text-sm font-headline font-bold ${odds.budget_odds >= 60 ? "text-emerald-400" : odds.budget_odds >= 30 ? "text-amber-400" : "text-red-400"}`}>{odds.budget_odds}%</span>
+                      </div>
+                      <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${odds.budget_odds >= 60 ? "bg-emerald-400/40" : odds.budget_odds >= 30 ? "bg-amber-400/40" : "bg-red-400/40"}`} style={{ width: `${odds.budget_odds}%` }} />
+                      </div>
+                    </SpotlightCard>
+
+                    {/* Impulse */}
+                    <SpotlightCard className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-red-400 text-base">warning</span>
+                          <span className="text-xs text-on-surface font-bold">Impulse buy this week</span>
+                        </div>
+                        <span className={`text-sm font-headline font-bold ${odds.impulse_odds <= 30 ? "text-emerald-400" : odds.impulse_odds <= 60 ? "text-amber-400" : "text-red-400"}`}>{odds.impulse_odds}%</span>
+                      </div>
+                      <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${odds.impulse_odds <= 30 ? "bg-emerald-400/40" : odds.impulse_odds <= 60 ? "bg-amber-400/40" : "bg-red-400/40"}`} style={{ width: `${odds.impulse_odds}%` }} />
+                      </div>
+                    </SpotlightCard>
+
+                    {/* Savings */}
+                    <SpotlightCard className="p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-primary text-base">flag</span>
+                          <span className="text-xs text-on-surface font-bold">Hitting savings goal</span>
+                        </div>
+                        <span className={`text-sm font-headline font-bold ${odds.savings_odds >= 60 ? "text-emerald-400" : odds.savings_odds >= 30 ? "text-amber-400" : "text-red-400"}`}>{odds.savings_odds}%</span>
+                      </div>
+                      <div className="h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${odds.savings_odds >= 60 ? "bg-emerald-400/40" : odds.savings_odds >= 30 ? "bg-amber-400/40" : "bg-red-400/40"}`} style={{ width: `${odds.savings_odds}%` }} />
+                      </div>
+                    </SpotlightCard>
+                  </div>
+
+                  {/* Risk Transfer actions */}
+                  <div className="space-y-3 mt-4">
+                    <div className="text-xs font-bold uppercase tracking-widest text-muted">Risk Transfer</div>
+                    <p className="text-[11px] text-muted">Trade your odds. Accept risk to earn tokens, or spend tokens to buy safety.</p>
+
+                    {/* Reduce risk */}
+                    {(exchangePortfolio?.balances.find(b => b.token_type === "indulgence")?.amount ?? 0) > 0 && (
+                      <SpotlightCard className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs font-bold text-on-surface">Shed your risk</div>
+                            <div className="text-[10px] text-muted mt-0.5">Trade 1 Indulgence → 1 Discipline</div>
+                            <div className="text-[10px] text-emerald-400 mt-0.5">+~4% budget safety</div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const res = await habitExchange.trade("indulgence", "discipline", 1);
+                              setTradeResult(res.message);
+                              const [p, o] = await Promise.all([habitExchange.portfolio(), habitExchange.odds()]);
+                              setExchangePortfolio(p);
+                              setOdds(o);
+                            }}
+                            className="px-4 py-2 rounded-xl bg-emerald-400/10 border border-emerald-400/30 text-emerald-400 text-xs font-bold"
+                          >
+                            Reduce risk
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    )}
+
+                    {/* Accept risk for reward */}
+                    {(exchangePortfolio?.balances.find(b => b.token_type === "discipline")?.amount ?? 0) > 0 && (
+                      <SpotlightCard className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs font-bold text-on-surface">Accept market risk</div>
+                            <div className="text-[10px] text-muted mt-0.5">Trade 1 Discipline → 1 Indulgence</div>
+                            <div className="text-[10px] text-red-400 mt-0.5">-~4% budget safety, but gain spending power</div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const res = await habitExchange.trade("discipline", "indulgence", 1);
+                              setTradeResult(res.message);
+                              const [p, o] = await Promise.all([habitExchange.portfolio(), habitExchange.odds()]);
+                              setExchangePortfolio(p);
+                              setOdds(o);
+                            }}
+                            className="px-4 py-2 rounded-xl bg-red-400/10 border border-red-400/30 text-red-400 text-xs font-bold"
+                          >
+                            Take risk
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    )}
+
+                    {/* Convert regret to knowledge */}
+                    {(exchangePortfolio?.balances.find(b => b.token_type === "regret")?.amount ?? 0) > 0 && (
+                      <SpotlightCard className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs font-bold text-on-surface">Learn from mistakes</div>
+                            <div className="text-[10px] text-muted mt-0.5">Trade 1 Regret → Knowledge</div>
+                            <div className="text-[10px] text-primary mt-0.5">Turn bad luck into wisdom</div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              const res = await habitExchange.trade("regret", "knowledge", 1);
+                              setTradeResult(res.message);
+                              const [p, o] = await Promise.all([habitExchange.portfolio(), habitExchange.odds()]);
+                              setExchangePortfolio(p);
+                              setOdds(o);
+                            }}
+                            className="px-4 py-2 rounded-xl bg-primary/10 border border-primary/30 text-primary text-xs font-bold"
+                          >
+                            Convert
+                          </button>
+                        </div>
+                      </SpotlightCard>
+                    )}
+                  </div>
+
+                  {tradeResult && <p className="text-xs text-emerald-400 text-center mt-3">{tradeResult}</p>}
+
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-white/[0.03] mt-4">
+                    <span className="material-symbols-outlined text-primary text-sm mt-0.5">auto_awesome</span>
+                    <p className="text-xs text-on-surface/70 leading-relaxed">
+                      In this world, the ultra-wealthy aren&apos;t those who earned the most — they&apos;re those who traded away all their risk.
+                      Every bad habit you hold is a liability. Every good one is insurance.
+                    </p>
+                  </div>
+                </>)}
+
+                {/* Ledger tab */}
+                {exchangeTab === "ledger" && (<>
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted mb-3">Public Ledger</div>
+                  <p className="text-xs text-muted mb-4">All trades are public in this alternate economy</p>
+                  {ledger.length === 0 ? (
+                    <p className="text-sm text-muted text-center py-8">No trades yet — be the first</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {ledger.map((entry, i) => (
+                        <div key={i} className="flex items-start gap-3 py-2.5 border-b border-white/[0.04] last:border-0">
+                          <div className="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-muted text-sm">{entry.icon}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-on-surface/80">{entry.message}</p>
+                            <p className="text-[10px] text-muted mt-0.5">{entry.time_ago}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>)}
+
+                <p className="text-[10px] text-muted text-center pt-4">Tokens earned through real behavior — streaks, savings, learning, and spending patterns</p>
+              </div>
+              );
+            })()}
+          </div>
+        </motion.div>
+      )}
+      </AnimatePresence>
 
       {/* Debrief Modal — full screen sheet */}
       {showDebrief && (

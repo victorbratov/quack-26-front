@@ -317,6 +317,31 @@ export const ingestion = {
   },
 };
 
+// ─── Habit Exchange ───
+export const habitExchange = {
+  portfolio: () => fetchAPI<HabitPortfolio>("/habit-exchange/portfolio"),
+  prices: () => fetchAPI<HabitPrices>("/habit-exchange/prices"),
+  trade: (fromToken: string, toToken: string, amount: number) =>
+    fetchAPI<HabitTradeResult>("/habit-exchange/trade", {
+      method: "POST",
+      body: JSON.stringify({ from_token: fromToken, to_token: toToken, amount }),
+    }),
+  convert: (tokenType: string, amount: number) =>
+    fetchAPI<{ success: boolean; xp_awarded: number; message: string }>("/habit-exchange/convert", {
+      method: "POST",
+      body: JSON.stringify({ token_type: tokenType, amount }),
+    }),
+  spendItems: () => fetchAPI<HabitSpendItem[]>("/habit-exchange/spend-items"),
+  spend: (itemId: string) =>
+    fetchAPI<{ success: boolean; message: string }>("/habit-exchange/spend", {
+      method: "POST",
+      body: JSON.stringify({ item_id: itemId }),
+    }),
+  ledger: () => fetchAPI<HabitLedgerEntry[]>("/habit-exchange/ledger"),
+  scenario: () => fetchAPI<HabitScenario>("/habit-exchange/scenario"),
+  odds: () => fetchAPI<HabitOdds>("/habit-exchange/odds"),
+};
+
 // ─── Replays ───
 export const replays = {
   latest: () => fetchAPI<WeeklyReplay>("/replays/latest"),
@@ -756,6 +781,66 @@ export type Debrief = {
     encouragement: string;
   };
   created_at: string;
+};
+
+export type HabitSpendItem = {
+  id: string;
+  name: string;
+  icon: string;
+  cost_token: string;
+  cost_amount: number;
+  description: string;
+  can_afford: boolean;
+};
+
+export type HabitLedgerEntry = {
+  message: string;
+  icon: string;
+  time_ago: string;
+};
+
+export type HabitScenario = {
+  scenario: string;
+  insight?: string;
+  category?: string;
+  tokens_needed?: number;
+  token_type?: string;
+  real_cost?: number;
+};
+
+export type HabitOdds = {
+  fortune_score: number;
+  budget_odds: number;
+  impulse_odds: number;
+  savings_odds: number;
+  risk_level: "low" | "medium" | "high";
+};
+
+export type HabitTokenBalance = {
+  token_type: string;
+  emoji: string;
+  amount: number;
+  price: number;
+  value: number;
+  change_pct: number;
+};
+
+export type HabitPortfolio = {
+  balances: HabitTokenBalance[];
+  total_value: number;
+};
+
+export type HabitPrices = {
+  prices: Record<string, number>;
+  changes: Record<string, number>;
+  explanation: string;
+};
+
+export type HabitTradeResult = {
+  success: boolean;
+  from_amount: number;
+  to_amount: number;
+  message: string;
 };
 
 export type WeeklyReplay = {
